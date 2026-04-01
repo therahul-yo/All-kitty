@@ -1,0 +1,6 @@
+node_modules/
+public/downloads/*
+!public/downloads/.gitkeep
+*.log
+test_output.mp4
+.DS_Store

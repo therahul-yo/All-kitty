@@ -1,0 +1,15 @@
+<svg width="128" height="128" viewBox="0 0 230 230" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Increased stroke-width to 24 for maximum visibility at small sizes -->
+    <path d="M115 50c18.5 0 35.5 15 45 35 15 30 5 65-20 85-15 12-35 15-55 10-18-4-32-15-40-30-10-20-8-45 5-65 12-18 35-35 65-35z" stroke="#ff7800" stroke-width="24"/>
+    <path d="M150 80l20-40-35 25" stroke="#ff7800" stroke-width="24" stroke-linejoin="round"/>
+    <path d="M80 80l-20-40 35 25" stroke="#ff7800" stroke-width="24" stroke-linejoin="round"/>
+    <path d="M90 110l10 5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M140 110l-10 5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M110 130c2 3 8 3 10 0" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M60 110l-20 -5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M60 125l-20 5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M170 110l20 -5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M170 125l20 5" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M125 160c10 -5 20 0 25 10" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+    <path d="M105 160c-10 -5-20 0-25 10" stroke="#ff7800" stroke-width="24" stroke-linecap="round"/>
+</svg>
