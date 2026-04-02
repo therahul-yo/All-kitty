@@ -8,9 +8,10 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { DownloadRequest, DownloadResponse, ActiveProcess } from './types.js';
-import { getSemanticError } from './utils.js';
+import { getSemanticError, buildYtDlpArgs } from './media.js';
 import { DownloadSchema } from './validators.js';
 import { saveDownload, getRecentDownloads, updateDownloadStatus } from './database.js';
+import { addToQueue, getQueueStatus, getJobStatus, downloadQueue } from './queue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,62 +88,12 @@ if (process.env.NODE_ENV === 'test') {
     cleanupInterval.unref();
 }
 
-export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: string): string[] {
-    const { url, format, quality, codec, container } = body;
-    const outputFileTemplate = path.join(downloadsDir, `${uuid}.%(ext)s`);
-    let args = ['--no-playlist', '--no-warnings', '-o', outputFileTemplate];
-
-    const isTikTok = /tiktok\.com/.test(url);
-    const isTwitter = /twitter\.com|x\.com/.test(url);
-
-    if (format === 'audio') {
-        args.push('-x', '--audio-format', 'mp3');
-        return args;
-    }
-
-    if (format === 'mute') {
-        args.push('-f', 'bestvideo');
-        return args;
-    }
-
-    if (isTikTok) {
-        args.push('-f', 'best');
-        return args;
-    }
-
-    if (isTwitter) {
-        args.push('-f', 'bestvideo+bestaudio/best');
-        return args;
-    }
-
-    const preferredContainer = container && container !== 'auto' ? container : 'mp4';
-    const extFilter = container && container !== 'auto' ? `[ext=${container}]` : '';
-    
-    let heightLimit = '';
-    if (quality && quality !== 'max') {
-        const res = quality.replace('p', '');
-        if (!isNaN(parseInt(res))) heightLimit = `[height<=${res}]`;
-    }
-
-    let vcodecFilter = '';
-    if (codec === 'h264') vcodecFilter = '[vcodec^=avc1]';
-    else if (codec === 'av1') vcodecFilter = '[vcodec^=av01]';
-    else if (codec === 'vp9') vcodecFilter = '[vcodec^=vp9]';
-
-    const formatStr = `bestvideo${heightLimit}${vcodecFilter}${extFilter}+bestaudio[ext=m4a]/bestvideo${heightLimit}${vcodecFilter}${extFilter}+bestaudio/best${heightLimit}${extFilter}/best`;
-    
-    args.push('-f', formatStr);
-    args.push('--merge-output-format', preferredContainer);
-
-    return args;
-}
-
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', async (req: Request, res: Response) => {
     res.json({
         status: 'healthy',
         uptime: process.uptime(),
         downloadsDir: downloadsDir,
-        activeProcesses: activeProcesses.size
+        queue: await getQueueStatus()
     });
 });
 
@@ -151,32 +102,47 @@ app.get('/api/history', (req: Request, res: Response) => {
     res.json(getRecentDownloads(limit));
 });
 
-app.post('/api/cancel', (req: Request, res: Response) => {
+app.get('/api/queue/status', async (req: Request, res: Response) => {
+    res.json(await getQueueStatus());
+});
+
+app.get('/api/queue/:jobId', async (req: Request, res: Response) => {
+    const status = await getJobStatus(req.params.jobId);
+    if (!status) return res.status(404).json({ error: 'Job not found.' });
+    res.json(status);
+});
+
+app.post('/api/cancel', async (req: Request, res: Response) => {
     const { uuid } = req.body;
-    if (uuid && activeProcesses.has(uuid)) {
+    if (!uuid) return res.status(400).json({ error: 'UUID is required.' });
+
+    // Cancel Bull job if it exists
+    const job = await downloadQueue.getJob(uuid);
+    if (job) {
+        await job.remove();
+        updateDownloadStatus(uuid, 'failed');
+        console.log(`[CANCEL] Job ${uuid} removed from queue.`);
+        return res.json({ success: true });
+    }
+
+    // fallback to legacy process map if needed (though queue handles most now)
+    if (activeProcesses.has(uuid)) {
         const active = activeProcesses.get(uuid)!;
         active.process.kill('SIGKILL');
         activeProcesses.delete(uuid);
         updateDownloadStatus(uuid, 'failed');
         return res.json({ success: true });
     }
+
     res.status(404).json({ error: 'Process not found.' });
 });
 
 app.post('/api/download', downloadLimiter, async (req: Request, res: Response) => {
-    let responseSent = false;
-
-    const sendResponse = (status: number, data: DownloadResponse) => {
-        if (responseSent) return;
-        responseSent = true;
-        res.status(status).json(data);
-    };
-
     // Input Validation with Zod
     const validation = DownloadSchema.safeParse(req.body);
     if (!validation.success) {
         const errorMsg = validation.error.issues.map(i => i.message).join(', ');
-        return sendResponse(400, { 
+        return res.status(400).json({ 
             success: false, 
             error: errorMsg
         });
@@ -190,59 +156,20 @@ app.post('/api/download', downloadLimiter, async (req: Request, res: Response) =
         id: uuid,
         url,
         format,
-        status: 'processing'
+        status: 'pending'
     });
 
-    const args = buildYtDlpArgs(validation.data as DownloadRequest, uuid, downloadsDir);
-    args.push(url);
-
-    const ytDlpProcess = spawn(YT_DLP_PATH, args);
-    activeProcesses.set(uuid, { process: ytDlpProcess, timestamp: Date.now() });
-
-    let errorOutput = '';
-    ytDlpProcess.stderr.on('data', (data) => errorOutput += data.toString());
-
-    ytDlpProcess.on('close', async (code) => {
-        activeProcesses.delete(uuid);
-        if (code !== 0) {
-            updateDownloadStatus(uuid, 'failed');
-            return sendResponse(500, { success: false, error: getSemanticError(errorOutput) });
-        }
-
-        try {
-            const files = await fs.promises.readdir(downloadsDir);
-            const matchingFile = files.find(f => f.startsWith(uuid));
-            if (matchingFile) {
-                const ext = path.extname(matchingFile);
-                const stats = await fs.promises.stat(path.join(downloadsDir, matchingFile));
-                
-                updateDownloadStatus(uuid, 'completed', `${FILE_PREFIX}${ext}`, stats.size);
-
-                return sendResponse(200, { 
-                    success: true, 
-                    downloadUrl: `/downloads/${matchingFile}`,
-                    filename: `${FILE_PREFIX}${ext}`,
-                    uuid
-                });
-            }
-            throw new Error('File missing');
-        } catch (err) {
-            updateDownloadStatus(uuid, 'failed');
-            return sendResponse(500, { success: false, error: 'Save failed.' });
-        }
-    });
-
-    req.on('close', () => {
-        if (!responseSent && activeProcesses.has(uuid)) {
-            const proc = activeProcesses.get(uuid)!.process;
-            proc.kill('SIGKILL');
-            activeProcesses.delete(uuid);
-            updateDownloadStatus(uuid, 'failed');
-        }
-    });
+    // Add to background queue
+    try {
+        await addToQueue(uuid, validation.data as DownloadRequest);
+        res.json({ success: true, jobId: uuid });
+    } catch (err: any) {
+        updateDownloadStatus(uuid, 'failed');
+        res.status(500).json({ success: false, error: 'Failed to queue job.' });
+    }
 });
 
-export { app };
+export { app, cleanupOldFiles };
 
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => console.log(`[SERVER] AllKitty ready on port ${PORT}`));
