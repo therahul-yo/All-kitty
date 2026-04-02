@@ -13,6 +13,7 @@
 <body class="dark-theme">
     <div class="app-container">
         <div id="toastContainer" class="toast-container"></div>
+        
         <main class="hero">
             <div class="mascot-container" id="mascotContainer">
                 <svg class="mascot" width="120" height="120" viewBox="0 0 230 230" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -29,6 +30,7 @@
                     <path d="M125 160c10 -5 20 0 25 10" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
                     <path d="M105 160c-10 -5-20 0-25 10" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
                 </svg>
+                <!-- Fish SVGs for animation -->
                 <svg class="fish f1" width="30" height="30" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M20 50c0-20 30-30 50-10 10 10 10 30 0 40-20 20-50 10-50-10z" stroke="#ff7800" stroke-width="8"/>
                     <path d="M70 50l20-15v30l-20-15z" stroke="#ff7800" stroke-width="8" stroke-linejoin="round"/>
@@ -45,27 +47,52 @@
 
             <div class="input-container">
                 <div class="input-wrapper">
-                    <input type="text" id="videoUrl" placeholder="paste link here" spellcheck="false" autocomplete="off">
-                    <button id="saveBtn">download</button>
-                    <button id="cancelBtn" class="cancel-btn" style="display: none;">cancel</button>
+                    <input type="text" id="videoUrl" placeholder="paste link here" spellcheck="false" autocomplete="off" aria-label="Media URL">
+                    <button id="saveBtn" aria-label="Download media">download</button>
+                    <button id="cancelBtn" class="cancel-btn" style="display: none;" aria-label="Cancel download">cancel</button>
                 </div>
-                <div id="statusMessage" class="status-msg"></div>
+                <div id="statusMessage" class="status-msg" aria-live="polite"></div>
+                
+                <!-- Queue Progress Bar -->
+                <div id="queueProgressContainer" class="queue-progress-container" style="display: none;">
+                    <div class="progress-bar-bg">
+                        <div id="queueProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <span id="queueProgressText" class="progress-text">waiting in queue...</span>
+                </div>
             </div>
         </main>
 
         <footer class="controls">
-            <button id="settingsBtn" class="icon-btn" title="settings">
+            <button id="historyBtn" class="icon-btn" title="history" aria-label="Open history" aria-expanded="false" aria-controls="historyPanel">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            </button>
+            <button id="settingsBtn" class="icon-btn" title="settings" aria-label="Open settings" aria-expanded="false" aria-controls="settingsPanel">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             </button>
-            <button id="infoBtn" class="icon-btn" title="info">
+            <button id="infoBtn" class="icon-btn" title="info" aria-label="Open information" aria-expanded="false" aria-controls="infoPanel">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             </button>
         </footer>
 
-        <div id="infoPanel" class="side-panel">
-            <div class="panel-container">
+        <div id="historyPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Download History">
+            <div class="panel-container" tabindex="-1">
                 <div class="panel-header">
-                    <button id="closeInfo" class="close-btn">&times;</button>
+                    <h2>history</h2>
+                    <button id="closeHistory" class="close-btn" aria-label="Close history">&times;</button>
+                </div>
+                <div class="panel-content">
+                    <div id="historyList" class="history-list">
+                        <p class="small-text">loading history...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="infoPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Information Panel">
+            <div class="panel-container" tabindex="-1">
+                <div class="panel-header">
+                    <button id="closeInfo" class="close-btn" aria-label="Close information">&times;</button>
                 </div>
                 <div class="panel-content">
                     <p><strong>allkitty</strong> is a "no-nonsense" media downloader.</p>
@@ -79,11 +106,11 @@
             </div>
         </div>
 
-        <div id="settingsPanel" class="side-panel bottom-up">
-            <div class="panel-container">
+        <div id="settingsPanel" class="side-panel bottom-up" role="dialog" aria-modal="true" aria-label="Settings Panel">
+            <div class="panel-container" tabindex="-1">
                 <div class="panel-header">
                     <h2>settings</h2>
-                    <button id="closeSettings" class="close-btn">&times;</button>
+                    <button id="closeSettings" class="close-btn" aria-label="Close settings">&times;</button>
                 </div>
                 <div class="panel-content">
                     <div class="setting-group">
@@ -113,7 +140,7 @@
                     <div class="setting-group toggle-group">
                         <label>mute video</label>
                         <label class="switch">
-                            <input type="checkbox" id="muteVideo">
+                            <input type="checkbox" id="muteVideo" aria-label="Mute video">
                             <span class="slider round"></span>
                         </label>
                     </div>
