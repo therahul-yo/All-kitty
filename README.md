@@ -1,66 +1,84 @@
-# AllKitty 🐾
+# AllKitty 🐾 - Production-Grade Media Processing Platform
 
-A "no-nonsense," minimalist media downloader inspired by Cobalt. Fast, clean, and ad-free.
+A robust, production-ready media downloading service built with Node.js, TypeScript, and Redis. Inspired by Cobalt, engineered for reliability.
 
-![License](https://img.shields.io/github/license/therahul-yo/All-kitty?style=flat-square)
-![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen?style=flat-square)
+![CI Status](https://github.com/therahul-yo/All-kitty/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-61%25-orange)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-## ✨ Features
+## 🌟 Key Features
 
-- **Minimalist UI:** A sleek, dark-themed interface with vibrant orange accents.
-- **Interactive Mascot:** Fun "fish-eating" animation during active downloads.
-- **Wide Platform Support:** Powered by `yt-dlp` to support YouTube, TikTok, Twitter/X, and more.
-- **Privacy First:** No ads, no trackers, and no analytics.
-- **Customizable Downloads:** Toggle between Video/Audio, select quality (up to 4K), and choose codecs.
-- **Production Ready:** Includes automatic file cleanup and configurable environment variables.
+- **🎬 Multi-Platform Support:** High-performance media extraction from YouTube, TikTok, Twitter/X, and more.
+- **📊 Advanced Job Queue:** Redis-backed background processing using `Bull` for handling concurrent high-load requests.
+- **📜 Persistent History:** SQLite-powered download history tracking with status management.
+- **🔒 Security Hardened:** 
+  - Strict input validation via `Zod`.
+  - Rate limiting to prevent API abuse.
+  - Secure HTTP headers via `Helmet`.
+- **🧪 Comprehensive Testing:** Unit and integration tests using `Jest` and `Supertest`.
+- **🐳 DevOps Ready:** Fully containerized with `Docker` and `Docker Compose`.
+- **🎨 Modern UI:** Zero-dependency Vanilla JS frontend with real-time queue polling and interactive animations.
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** Vanilla HTML5, CSS3 (Custom Properties & Keyframes), Vanilla JavaScript.
-- **Backend:** Node.js, Express.js.
-- **Engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+| Layer | Technology |
+|-------|------------|
+| **Runtime** | Node.js 20 (LTS) |
+| **Language** | TypeScript (Strict Mode) |
+| **Framework** | Express.js |
+| **Queue** | Bull + Redis |
+| **Database** | SQLite (better-sqlite3) |
+| **Testing** | Jest + Supertest |
+| **Security** | Zod, Helmet, Rate-Limit |
+| **Engine** | yt-dlp + ffmpeg |
+| **DevOps** | Docker, GitHub Actions |
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- [Node.js](https://nodejs.org/) 20+
+- [Docker](https://www.docker.com/) (Optional, for easy setup)
+- [Redis](https://redis.io/) (If running locally without Docker)
 
-- [Node.js](https://nodejs.org/) (v18+)
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Must be installed and accessible in your system PATH)
-- [ffmpeg](https://ffmpeg.org/) (Required for merging high-quality video and audio)
+### Local Development
 
-### Installation
-
-1. **Clone the repository:**
+1. **Clone & Install:**
    ```bash
    git clone https://github.com/therahul-yo/All-kitty.git
    cd All-kitty
-   ```
-
-2. **Install dependencies:**
-   ```bash
    npm install
    ```
 
-3. **Configure Environment:**
-   Copy the example environment file and adjust as needed:
+2. **Environment Setup:**
    ```bash
    cp .env.example .env
    ```
 
-4. **Run the server:**
+3. **Start Dev Server:**
    ```bash
-   npm start
+   npm run dev
    ```
-   The app will be available at `http://localhost:3000`.
+
+### Running Tests
+```bash
+npm test                 # Run all tests
+npm run test:coverage    # Generate coverage report
+```
+
+### Docker Deployment
+The easiest way to run the full stack (App + Redis):
+```bash
+docker-compose up --build
+```
 
 ## ⚙️ Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Server port | `3000` |
-| `YT_DLP_PATH` | Path to yt-dlp executable | `yt-dlp` |
-| `CLEANUP_INTERVAL` | How often to purge old files (ms) | `900000` (15m) |
-| `MAX_FILE_AGE` | Max age of files before deletion (ms) | `3600000` (1h) |
+| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
+| `MAX_FILE_AGE` | File cleanup threshold (ms) | `3600000` (1h) |
+| `FILE_PREFIX` | Default download filename | `allkitty` |
 
 ## 📜 License
 

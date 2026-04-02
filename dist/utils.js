@@ -1,4 +1,4 @@
-export function getSemanticError(stderr: string): string {
+export function getSemanticError(stderr) {
     const errorPatterns = [
         { pattern: /Sign in to confirm you’re not a bot/i, message: 'Anti-bot detection triggered. Use a different link or try again.' },
         { pattern: /This video is private/i, message: 'This video is private.' },
@@ -10,9 +10,9 @@ export function getSemanticError(stderr: string): string {
         { pattern: /Video is age-restricted/i, message: 'Video is age-restricted and requires sign-in.' },
         { pattern: /Premium/i, message: 'This content requires a premium account.' }
     ];
-
     for (const { pattern, message } of errorPatterns) {
-        if (pattern.test(stderr)) return message;
+        if (pattern.test(stderr))
+            return message;
     }
     return 'Processing failed. Please check the URL and try again.';
 }
