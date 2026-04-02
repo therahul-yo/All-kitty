@@ -1,12 +1,15 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
 import crypto from 'crypto';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { DownloadRequest, DownloadResponse, ActiveProcess } from './types.js';
 import { getSemanticError } from './utils.js';
+import { DownloadSchema } from './validators.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +23,31 @@ const FILE_PREFIX = process.env.FILE_PREFIX || 'allkitty';
 
 const activeProcesses = new Map<string, ActiveProcess>();
 
-app.use(cors());
+// Security Middlewares
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "img-src": ["'self'", "data:", "https:"],
+            "script-src": ["'self'", "'unsafe-inline'"], // Needed for simple vanilla JS interactions
+        },
+    },
+}));
+
+const downloadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // 10 requests per window
+    message: { error: 'Too many downloads, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type'],
+}));
+
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -105,6 +132,15 @@ function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: strin
     return args;
 }
 
+app.get('/api/health', (req: Request, res: Response) => {
+    res.json({
+        status: 'healthy',
+        uptime: process.uptime(),
+        downloadsDir: downloadsDir,
+        activeProcesses: activeProcesses.size
+    });
+});
+
 app.post('/api/cancel', (req: Request, res: Response) => {
     const { uuid } = req.body;
     if (uuid && activeProcesses.has(uuid)) {
@@ -116,8 +152,7 @@ app.post('/api/cancel', (req: Request, res: Response) => {
     res.status(404).json({ error: 'Process not found.' });
 });
 
-app.post('/api/download', async (req: Request, res: Response) => {
-    const { url } = req.body;
+app.post('/api/download', downloadLimiter, async (req: Request, res: Response) => {
     let responseSent = false;
 
     const sendResponse = (status: number, data: DownloadResponse) => {
@@ -126,12 +161,18 @@ app.post('/api/download', async (req: Request, res: Response) => {
         res.status(status).json(data);
     };
 
-    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-        return sendResponse(400, { success: false, error: 'A valid URL is required.' });
+    // Input Validation with Zod
+    const validation = DownloadSchema.safeParse(req.body);
+    if (!validation.success) {
+        return sendResponse(400, { 
+            success: false, 
+            error: validation.error.errors.map(e => e.message).join(', ') 
+        });
     }
 
+    const { url } = validation.data;
     const uuid = crypto.randomUUID();
-    const args = buildYtDlpArgs(req.body, uuid, downloadsDir);
+    const args = buildYtDlpArgs(validation.data as DownloadRequest, uuid, downloadsDir);
     args.push(url);
 
     const ytDlpProcess = spawn(YT_DLP_PATH, args);
