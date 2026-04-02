@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { DownloadRequest, DownloadResponse, ActiveProcess } from './types.js';
 import { getSemanticError } from './utils.js';
 import { DownloadSchema } from './validators.js';
+import { saveDownload, getRecentDownloads, updateDownloadStatus } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +30,7 @@ app.use(helmet({
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "img-src": ["'self'", "data:", "https:"],
-            "script-src": ["'self'", "'unsafe-inline'"], // Needed for simple vanilla JS interactions
+            "script-src": ["'self'", "'unsafe-inline'"],
         },
     },
 }));
@@ -40,6 +41,7 @@ const downloadLimiter = rateLimit({
     message: { error: 'Too many downloads, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
 });
 
 app.use(cors({
@@ -80,9 +82,12 @@ const cleanupOldFiles = async () => {
     }
 };
 
-setInterval(cleanupOldFiles, CLEANUP_INTERVAL);
+const cleanupInterval = setInterval(cleanupOldFiles, CLEANUP_INTERVAL);
+if (process.env.NODE_ENV === 'test') {
+    cleanupInterval.unref();
+}
 
-function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: string): string[] {
+export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: string): string[] {
     const { url, format, quality, codec, container } = body;
     const outputFileTemplate = path.join(downloadsDir, `${uuid}.%(ext)s`);
     let args = ['--no-playlist', '--no-warnings', '-o', outputFileTemplate];
@@ -141,12 +146,18 @@ app.get('/api/health', (req: Request, res: Response) => {
     });
 });
 
+app.get('/api/history', (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string || '10');
+    res.json(getRecentDownloads(limit));
+});
+
 app.post('/api/cancel', (req: Request, res: Response) => {
     const { uuid } = req.body;
     if (uuid && activeProcesses.has(uuid)) {
         const active = activeProcesses.get(uuid)!;
         active.process.kill('SIGKILL');
         activeProcesses.delete(uuid);
+        updateDownloadStatus(uuid, 'failed');
         return res.json({ success: true });
     }
     res.status(404).json({ error: 'Process not found.' });
@@ -164,14 +175,24 @@ app.post('/api/download', downloadLimiter, async (req: Request, res: Response) =
     // Input Validation with Zod
     const validation = DownloadSchema.safeParse(req.body);
     if (!validation.success) {
+        const errorMsg = validation.error.issues.map(i => i.message).join(', ');
         return sendResponse(400, { 
             success: false, 
-            error: validation.error.errors.map(e => e.message).join(', ') 
+            error: errorMsg
         });
     }
 
-    const { url } = validation.data;
+    const { url, format } = validation.data;
     const uuid = crypto.randomUUID();
+    
+    // Initial save
+    saveDownload({
+        id: uuid,
+        url,
+        format,
+        status: 'processing'
+    });
+
     const args = buildYtDlpArgs(validation.data as DownloadRequest, uuid, downloadsDir);
     args.push(url);
 
@@ -184,6 +205,7 @@ app.post('/api/download', downloadLimiter, async (req: Request, res: Response) =
     ytDlpProcess.on('close', async (code) => {
         activeProcesses.delete(uuid);
         if (code !== 0) {
+            updateDownloadStatus(uuid, 'failed');
             return sendResponse(500, { success: false, error: getSemanticError(errorOutput) });
         }
 
@@ -192,6 +214,10 @@ app.post('/api/download', downloadLimiter, async (req: Request, res: Response) =
             const matchingFile = files.find(f => f.startsWith(uuid));
             if (matchingFile) {
                 const ext = path.extname(matchingFile);
+                const stats = await fs.promises.stat(path.join(downloadsDir, matchingFile));
+                
+                updateDownloadStatus(uuid, 'completed', `${FILE_PREFIX}${ext}`, stats.size);
+
                 return sendResponse(200, { 
                     success: true, 
                     downloadUrl: `/downloads/${matchingFile}`,
@@ -201,16 +227,23 @@ app.post('/api/download', downloadLimiter, async (req: Request, res: Response) =
             }
             throw new Error('File missing');
         } catch (err) {
+            updateDownloadStatus(uuid, 'failed');
             return sendResponse(500, { success: false, error: 'Save failed.' });
         }
     });
 
     req.on('close', () => {
         if (!responseSent && activeProcesses.has(uuid)) {
-            activeProcesses.get(uuid)!.process.kill('SIGKILL');
+            const proc = activeProcesses.get(uuid)!.process;
+            proc.kill('SIGKILL');
             activeProcesses.delete(uuid);
+            updateDownloadStatus(uuid, 'failed');
         }
     });
 });
 
-app.listen(PORT, () => console.log(`[SERVER] AllKitty ready on port ${PORT}`));
+export { app };
+
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => console.log(`[SERVER] AllKitty ready on port ${PORT}`));
+}
