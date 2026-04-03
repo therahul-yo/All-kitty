@@ -19,6 +19,8 @@ const downloadQueue = new Queue('downloads', process.env.REDIS_URL || 'redis://l
     tls: process.env.REDIS_URL?.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    connectTimeout: 15000,
+    keepAlive: 30000,
   },
 });
 
