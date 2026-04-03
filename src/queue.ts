@@ -16,10 +16,14 @@ const downloadsDir = path.resolve(__dirname, '../public/downloads');
 
 const downloadQueue = new Queue('downloads', process.env.REDIS_URL || 'redis://localhost:6379', {
   redis: {
-    tls: process.env.REDIS_URL?.startsWith('rediss://') ? {} : undefined,
+    tls: process.env.REDIS_URL?.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
   },
+});
+
+downloadQueue.on('error', (err) => {
+    console.error('[QUEUE ERROR]', err.message);
 });
 
 downloadQueue.process(async (job) => {
@@ -32,7 +36,7 @@ downloadQueue.process(async (job) => {
     const args = buildYtDlpArgs(req, uuid, downloadsDir);
     args.push(req.url);
 
-    return new Promise((resolve, reject) => {
+    return new Promise<any>((resolve, reject) => {
         const ytDlpProcess = spawn(YT_DLP_PATH, args);
         let errorOutput = '';
 

@@ -99,8 +99,9 @@ app.get('/api/health', async (req: Request, res: Response) => {
 });
 
 app.get('/api/history', (req: Request, res: Response) => {
-    const limit = parseInt(req.query.limit as string || '10');
-    res.json(getRecentDownloads(limit));
+    const limitStr = req.query.limit;
+    const limit = typeof limitStr === 'string' ? parseInt(limitStr) : 10;
+    res.json(getRecentDownloads(isNaN(limit) ? 10 : limit));
 });
 
 app.get('/api/queue/status', async (req: Request, res: Response) => {
