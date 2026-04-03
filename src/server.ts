@@ -17,6 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1); // Enable trusting proxy headers for Render
 const PORT = process.env.PORT || 3000;
 const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp';
 const CLEANUP_INTERVAL = parseInt(process.env.CLEANUP_INTERVAL || '900000');
