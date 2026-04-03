@@ -45,6 +45,10 @@ if (isSecure) {
 const client = new Redis(redisUrl, redisOptions);
 const subscriber = new Redis(redisUrl, redisOptions);
 
+// Prevent process crash on connection/auth errors
+client.on('error', (err) => console.error('[REDIS CLIENT ERROR]', err.message));
+subscriber.on('error', (err) => console.error('[REDIS SUB ERROR]', err.message));
+
 const downloadQueue = new Queue('downloads', {
     createClient: (type) => {
         switch (type) {
