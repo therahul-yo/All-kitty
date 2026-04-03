@@ -1,6 +1,6 @@
 # AllKitty 🐾 - Production-Grade Media Processing Platform
 
-A robust, production-ready media downloading service built with Node.js, TypeScript, and Redis. Inspired by Cobalt, engineered for reliability.
+A robust, production-ready media downloading service built with Node.js, TypeScript, and Redis. Engineered for reliability.
 
 ![CI Status](https://github.com/therahul-yo/All-kitty/actions/workflows/ci.yml/badge.svg)
 ![Coverage](https://img.shields.io/badge/coverage-61%25-orange)

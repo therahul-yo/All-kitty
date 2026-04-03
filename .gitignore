@@ -1,6 +1,12 @@
 node_modules/
+dist/
+coverage/
 public/downloads/*
 !public/downloads/.gitkeep
 *.log
 test_output.mp4
 .DS_Store
+.env
+downloads.db
+downloads.db-journal
+public/script.js
