@@ -2,6 +2,7 @@ import Queue from 'bull';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import Redis from 'ioredis';
 import { fileURLToPath } from 'url';
 import { DownloadRequest } from './types.js';
 import { buildYtDlpArgs, getSemanticError } from './media.js';
@@ -14,14 +15,44 @@ const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp';
 const FILE_PREFIX = process.env.FILE_PREFIX || 'allkitty';
 const downloadsDir = path.resolve(__dirname, '../public/downloads');
 
-const downloadQueue = new Queue('downloads', process.env.REDIS_URL || 'redis://localhost:6379', {
-  redis: {
-    tls: process.env.REDIS_URL?.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const isSecure = redisUrl.startsWith('rediss://');
+
+// Create robust Redis client configuration
+const redisOptions: any = {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
-    connectTimeout: 15000,
-    keepAlive: 30000,
-  },
+    retryStrategy: (times: number) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+    },
+    reconnectOnError: (err: Error) => {
+        const targetError = 'READONLY';
+        if (err.message.includes(targetError)) {
+            return true;
+        }
+        return false;
+    }
+};
+
+if (isSecure) {
+    redisOptions.tls = {
+        rejectUnauthorized: false
+    };
+}
+
+// Bull requires 3 connections: client, subscriber, and bclient
+const client = new Redis(redisUrl, redisOptions);
+const subscriber = new Redis(redisUrl, redisOptions);
+
+const downloadQueue = new Queue('downloads', {
+    createClient: (type) => {
+        switch (type) {
+            case 'client': return client;
+            case 'subscriber': return subscriber;
+            default: return new Redis(redisUrl, redisOptions);
+        }
+    }
 });
 
 downloadQueue.on('error', (err) => {
