@@ -2,7 +2,7 @@ import Queue from 'bull';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { fileURLToPath } from 'url';
 import { DownloadRequest } from './types.js';
 import { buildYtDlpArgs, getSemanticError } from './media.js';
