@@ -14,8 +14,12 @@ const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp';
 const FILE_PREFIX = process.env.FILE_PREFIX || 'allkitty';
 const downloadsDir = path.resolve(__dirname, '../public/downloads');
 
-const downloadQueue = new Queue('downloads', {
-  redis: process.env.REDIS_URL || 'redis://localhost:6379',
+const downloadQueue = new Queue('downloads', process.env.REDIS_URL || 'redis://localhost:6379', {
+  redis: {
+    tls: process.env.REDIS_URL?.startsWith('rediss://') ? {} : undefined,
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  },
 });
 
 downloadQueue.process(async (job) => {
