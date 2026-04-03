@@ -26,7 +26,7 @@ downloadQueue.on('error', (err) => {
     console.error('[QUEUE ERROR]', err.message);
 });
 
-downloadQueue.process(async (job) => {
+downloadQueue.process((job) => {
     const { id, data } = job;
     const uuid = id as string;
     const req = data as DownloadRequest;

@@ -109,7 +109,8 @@ app.get('/api/queue/status', async (req: Request, res: Response) => {
 });
 
 app.get('/api/queue/:jobId', async (req: Request, res: Response) => {
-    const status = await getJobStatus(req.params.jobId);
+    const jobId = req.params.jobId as string;
+    const status = await getJobStatus(jobId);
     if (!status) return res.status(404).json({ error: 'Job not found.' });
     res.json(status);
 });
