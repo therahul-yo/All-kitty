@@ -40,7 +40,7 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         '--sleep-requests', '1',
         '--no-check-certificate',
         '--prefer-free-formats',
-        '--extractor-args', 'youtube:player_client=android,web'
+        '--extractor-args', 'youtube:player_client=ios,mweb,android,web'
     ];
 
     if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
