@@ -7,9 +7,15 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     ffmpeg \
     curl \
+    unzip \
     build-essential \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Deno (required by yt-dlp to solve JS challenges)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
 
 # Install yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
