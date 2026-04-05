@@ -6,7 +6,10 @@ import { DownloadRequest } from './types.js';
 
 export function getSemanticError(stderr: string): string {
     const errorPatterns = [
-        { pattern: /Sign in to confirm you’re not a bot/i, message: 'Anti-bot detection triggered. Use a different link or try again.' },
+        { 
+            pattern: /Sign in to confirm you’re not a bot/i, 
+            message: 'YouTube anti-bot detection triggered. Please try a clean link without tracking (remove ?si=...) or provide a cookies.txt file.' 
+        },
         { pattern: /This video is private/i, message: 'This video is private.' },
         { pattern: /Video unavailable/i, message: 'Media is unavailable.' },
         { pattern: /Incomplete YouTube ID/i, message: 'Invalid URL provided.' },
@@ -31,7 +34,10 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         '--no-warnings', 
         '-o', outputFileTemplate,
         '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        '--add-header', 'Accept-Language: en-US,en;q=0.9'
+        '--add-header', 'Accept-Language: en-US,en;q=0.9',
+        '--referer', 'https://www.youtube.com/',
+        '--geo-bypass',
+        '--sleep-requests', '1'
     ];
 
     if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
