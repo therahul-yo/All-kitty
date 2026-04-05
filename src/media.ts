@@ -37,7 +37,9 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         '--add-header', 'Accept-Language: en-US,en;q=0.9',
         '--referer', 'https://www.youtube.com/',
         '--geo-bypass',
-        '--sleep-requests', '1'
+        '--sleep-requests', '1',
+        '--no-check-certificate',
+        '--prefer-free-formats'
     ];
 
     if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
@@ -46,6 +48,7 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
 
     const isTikTok = /tiktok\.com/.test(url);
     const isTwitter = /twitter\.com|x\.com/.test(url);
+    const isYoutube = /youtube\.com|youtu\.be/.test(url);
 
     if (format === 'audio') {
         args.push('-x', '--audio-format', 'mp3');
@@ -68,7 +71,6 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
     }
 
     const preferredContainer = container && container !== 'auto' ? container : 'mp4';
-    const extFilter = container && container !== 'auto' ? `[ext=${container}]` : '';
     
     let heightLimit = '';
     if (quality && quality !== 'max') {
@@ -76,12 +78,12 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         if (!isNaN(parseInt(res))) heightLimit = `[height<=${res}]`;
     }
 
-    let vcodecFilter = '';
-    if (codec === 'h264') vcodecFilter = '[vcodec^=avc1]';
-    else if (codec === 'av1') vcodecFilter = '[vcodec^=av01]';
-    else if (codec === 'vp9') vcodecFilter = '[vcodec^=vp9]';
-
-    const formatStr = `bestvideo${heightLimit}${vcodecFilter}${extFilter}+bestaudio[ext=m4a]/bestvideo${heightLimit}${vcodecFilter}${extFilter}+bestaudio/best${heightLimit}${extFilter}/best`;
+    let formatStr = '';
+    if (isYoutube) {
+        formatStr = `bestvideo${heightLimit}+bestaudio/best${heightLimit}`;
+    } else {
+        formatStr = `bestvideo${heightLimit}+bestaudio/best`;
+    }
     
     args.push('-f', formatStr);
     args.push('--merge-output-format', preferredContainer);

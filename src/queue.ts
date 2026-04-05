@@ -76,11 +76,23 @@ downloadQueue.process((job) => {
     return new Promise<any>((resolve, reject) => {
         const ytDlpProcess = spawn(YT_DLP_PATH, args);
         let errorOutput = '';
+        let stdoutOutput = '';
 
-        ytDlpProcess.stderr.on('data', (data) => errorOutput += data.toString());
+        ytDlpProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            stdoutOutput += output;
+            console.log(`[YT-DLP STDOUT] ${output.trim()}`);
+        });
+
+        ytDlpProcess.stderr.on('data', (data) => {
+            const output = data.toString();
+            errorOutput += output;
+            console.error(`[YT-DLP STDERR] ${output.trim()}`);
+        });
 
         ytDlpProcess.on('close', async (code) => {
             if (code !== 0) {
+                console.error(`[YT-DLP FAILED] Code ${code}. Error: ${errorOutput}`);
                 const error = getSemanticError(errorOutput);
                 updateDownloadStatus(uuid, 'failed');
                 return reject(new Error(error));
