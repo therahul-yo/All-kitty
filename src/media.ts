@@ -47,6 +47,10 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         args.push('--cookies', process.env.COOKIES_PATH);
     }
 
+    if (process.env.PROXY_URL) {
+        args.push('--proxy', process.env.PROXY_URL);
+    }
+
     const isTikTok = /tiktok\.com/.test(url);
     const isTwitter = /twitter\.com|x\.com/.test(url);
     const isYoutube = /youtube\.com|youtu\.be/.test(url);
