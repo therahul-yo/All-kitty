@@ -26,7 +26,17 @@ export function getSemanticError(stderr: string): string {
 export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: string): string[] {
     const { url, format, quality, codec, container } = body;
     const outputFileTemplate = path.join(downloadsDir, `${uuid}.%(ext)s`);
-    let args = ['--no-playlist', '--no-warnings', '-o', outputFileTemplate];
+    let args = [
+        '--no-playlist', 
+        '--no-warnings', 
+        '-o', outputFileTemplate,
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        '--add-header', 'Accept-Language: en-US,en;q=0.9'
+    ];
+
+    if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
+        args.push('--cookies', process.env.COOKIES_PATH);
+    }
 
     const isTikTok = /tiktok\.com/.test(url);
     const isTwitter = /twitter\.com|x\.com/.test(url);
