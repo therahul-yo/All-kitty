@@ -6,17 +6,18 @@
     --bg-mid:         #050008;
     --bg-glow:        #0a0014;
 
-    --lcd-0:          #cfe7a8;
-    --lcd-1:          #8fbc63;
-    --lcd-2:          #4f7042;
-    --lcd-3:          #1c2a16;
+    /* Teal/cyan LCD — pops against orange cat */
+    --lcd-0:          #b8e8e0;
+    --lcd-1:          #5fb0a8;
+    --lcd-2:          #2a6068;
+    --lcd-3:          #0a2030;
 
-    /* Realistic plastic shell — pink translucent (like a clear-pink GBC) */
-    --shell-hi:       #ff9cc8;
-    --shell:          #e0689c;
-    --shell-mid:      #b94c7d;
-    --shell-lo:       #6a2548;
-    --shell-shadow:   #2a0a18;
+    /* Metallic red shell (classic Famicom / Virtual Boy red) */
+    --shell-hi:       #ff5560;
+    --shell:          #d8252e;
+    --shell-mid:      #9a1018;
+    --shell-lo:       #5a0810;
+    --shell-shadow:   #1a0004;
 
     --plastic-hi:     rgba(255,255,255,.35);
     --plastic-lo:     rgba(0,0,0,.45);
@@ -117,13 +118,14 @@ body {
     padding: 14px 18px 26px;
     border-radius: 18px 18px 28px 28px;
     background:
-      /* speckled translucent plastic */
-      radial-gradient(circle at 18% 22%, rgba(255,255,255,.22) 0%, transparent 35%),
-      radial-gradient(circle at 80% 18%, rgba(255,255,255,.14) 0%, transparent 30%),
+      /* metallic specular highlights */
+      radial-gradient(ellipse 65% 30% at 30% 8%, rgba(255,255,255,.55) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 18% at 80% 90%, rgba(255,255,255,.18) 0%, transparent 70%),
+      radial-gradient(circle at 12% 50%, rgba(0,0,0,.25) 0%, transparent 40%),
       linear-gradient(160deg,
         var(--shell-hi) 0%,
-        var(--shell) 35%,
-        var(--shell-mid) 70%,
+        var(--shell) 28%,
+        var(--shell-mid) 65%,
         var(--shell-lo) 100%);
     box-shadow:
       /* outer hard outline */
@@ -139,34 +141,24 @@ body {
       0 4px 0 var(--shell-shadow);
 }
 
-/* Four corner screws */
-.device-shell::before,
-.device-shell::after,
-.device-controls::before,
-.device-controls::after {
-    content: "";
+/* Four corner screws — real DOM nodes pinned to the shell corners */
+.screw {
     position: absolute;
     width: 14px; height: 14px;
     border-radius: 50%;
     background:
-      radial-gradient(circle at 35% 30%, #e8e8e8 0%, #888 40%, #3a3a3a 100%);
+      linear-gradient(45deg, transparent 44%, rgba(0,0,0,.85) 44%, rgba(0,0,0,.85) 56%, transparent 56%),
+      radial-gradient(circle at 35% 30%, #f0f0f0 0%, #999 38%, #4a4a4a 80%, #2a2a2a 100%);
     box-shadow:
-      inset 0 0 0 1px rgba(0,0,0,.6),
-      inset 1px 1px 0 rgba(255,255,255,.4),
-      0 0 0 2px rgba(0,0,0,.35);
+      inset 0 0 0 1px rgba(0,0,0,.7),
+      inset 1px 1px 0 rgba(255,255,255,.45),
+      0 1px 2px rgba(0,0,0,.5);
     z-index: 5;
 }
-/* Phillips slit */
-.device-shell::before { top: 10px; left: 10px; background-image:
-    radial-gradient(circle at 35% 30%, #e8e8e8 0%, #888 40%, #3a3a3a 100%),
-    linear-gradient(45deg, transparent 45%, #1a1a1a 45%, #1a1a1a 55%, transparent 55%);
-}
-.device-shell::after  { top: 10px; right: 10px; background-image:
-    radial-gradient(circle at 35% 30%, #e8e8e8 0%, #888 40%, #3a3a3a 100%),
-    linear-gradient(-45deg, transparent 45%, #1a1a1a 45%, #1a1a1a 55%, transparent 55%);
-}
-.device-controls::before { bottom: 14px; left: 14px; }
-.device-controls::after  { bottom: 14px; right: 14px; }
+.screw-tl { top: 10px;    left: 10px; }
+.screw-tr { top: 10px;    right: 10px; transform: rotate(90deg); }
+.screw-bl { bottom: 10px; left: 10px; transform: rotate(45deg); }
+.screw-br { bottom: 10px; right: 10px; transform: rotate(-45deg); }
 
 .device-top {
     display: flex; justify-content: space-between; align-items: center;
@@ -243,28 +235,28 @@ body {
 
 .screen-bezel {
     background:
-      linear-gradient(180deg, #06120a 0%, #0a1a10 100%);
+      linear-gradient(180deg, #04101a 0%, #0a1c28 100%);
     padding: 8px;
     border-radius: 3px;
     box-shadow:
       inset 0 2px 4px rgba(0,0,0,.9),
-      inset 0 -1px 0 rgba(96,160,80,.15);
+      inset 0 -1px 0 rgba(95,176,168,.15);
 }
 
 .screen-glass {
     position: relative;
-    background: linear-gradient(180deg, var(--lcd-0) 0%, #b6d488 100%);
+    background: linear-gradient(180deg, var(--lcd-0) 0%, #88c8c0 100%);
     padding: 14px 14px 10px;
     overflow: hidden;
     aspect-ratio: 4 / 3;
-    box-shadow: inset 0 0 22px rgba(28,42,22,.35);
+    box-shadow: inset 0 0 22px rgba(10,32,48,.4);
 }
 .screen-glass::before {
     content: "";
     position: absolute; inset: 0;
     background:
-      radial-gradient(ellipse 80% 40% at 30% 10%, rgba(255,255,255,.5) 0%, transparent 60%),
-      repeating-linear-gradient(to bottom, transparent 0, transparent 1px, rgba(28,42,22,.08) 1px, rgba(28,42,22,.08) 2px);
+      radial-gradient(ellipse 80% 40% at 30% 10%, rgba(255,255,255,.55) 0%, transparent 60%),
+      repeating-linear-gradient(to bottom, transparent 0, transparent 1px, rgba(10,32,48,.1) 1px, rgba(10,32,48,.1) 2px);
     pointer-events: none;
     mix-blend-mode: overlay;
 }
