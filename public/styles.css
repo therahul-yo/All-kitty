@@ -79,6 +79,26 @@ body {
     z-index: 49;
 }
 
+/* Giant pixel hands holding the device */
+.hand {
+    position: fixed;
+    bottom: 0;
+    width: clamp(280px, 38vw, 520px);
+    height: 80vh;
+    z-index: 1;          /* behind the device (z-index: 2) but above bg */
+    pointer-events: none;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 -4px 12px rgba(0,0,0,.7));
+}
+.hand-left  { left: 0;  transform: translate(15%, 28%); }
+.hand-right { right: 0; transform: translate(-15%, 28%) scaleX(-1); }
+
+@media (max-width: 720px) {
+    .hand { width: clamp(180px, 32vw, 320px); transform: translateY(50%); }
+    .hand-left  { transform: translate(-15%, 50%); }
+    .hand-right { transform: translate(15%, 50%); }
+}
+
 /* === Device shell — translucent-pink handheld === */
 
 .device { width: min(420px, 100%); position: relative; }

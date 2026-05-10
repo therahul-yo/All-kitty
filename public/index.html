@@ -15,6 +15,53 @@
     <div class="scanlines" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
 
+    <!-- Giant pixel hands holding the console -->
+    <svg class="hand hand-left" viewBox="0 0 40 64" preserveAspectRatio="xMaxYMax meet" aria-hidden="true" shape-rendering="crispEdges">
+        <defs>
+            <linearGradient id="skinL" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#d99868"/>
+                <stop offset=".55" stop-color="#f0c898"/>
+                <stop offset="1" stop-color="#b87848"/>
+            </linearGradient>
+        </defs>
+        <!-- forearm extending off-bottom -->
+        <rect x="14" y="34" width="22" height="32" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <!-- wrist crease -->
+        <rect x="15" y="34" width="20" height="2" fill="#9a5a30" opacity=".55"/>
+        <!-- palm/back of hand -->
+        <rect x="10" y="22" width="28" height="14" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <!-- thumb sticking up over the device front -->
+        <rect x="28" y="10" width="9" height="14" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="29" y="11" width="2" height="3" fill="#fff" opacity=".4"/>
+        <!-- knuckle bumps (fingers wrapping behind) -->
+        <rect x="11"  y="18" width="6" height="6" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="17.5" y="17" width="6" height="7" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="24"  y="18" width="6" height="6" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <!-- palm shadow -->
+        <rect x="11" y="32" width="26" height="2" fill="#9a5a30" opacity=".5"/>
+        <!-- knuckle highlight -->
+        <rect x="12" y="23" width="20" height="1" fill="#fff" opacity=".25"/>
+    </svg>
+    <svg class="hand hand-right" viewBox="0 0 40 64" preserveAspectRatio="xMinYMax meet" aria-hidden="true" shape-rendering="crispEdges">
+        <defs>
+            <linearGradient id="skinR" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#b87848"/>
+                <stop offset=".45" stop-color="#f0c898"/>
+                <stop offset="1" stop-color="#d99868"/>
+            </linearGradient>
+        </defs>
+        <rect x="4" y="34" width="22" height="32" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="5" y="34" width="20" height="2" fill="#9a5a30" opacity=".55"/>
+        <rect x="2" y="22" width="28" height="14" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="3" y="10" width="9" height="14" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="9" y="11" width="2" height="3" fill="#fff" opacity=".4"/>
+        <rect x="10" y="18" width="6" height="6" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="16.5" y="17" width="6" height="7" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="23" y="18" width="6" height="6" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
+        <rect x="3" y="32" width="26" height="2" fill="#9a5a30" opacity=".5"/>
+        <rect x="8" y="23" width="20" height="1" fill="#fff" opacity=".25"/>
+    </svg>
+
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
     <main class="device" role="main">
