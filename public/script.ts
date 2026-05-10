@@ -26,6 +26,70 @@ document.addEventListener('DOMContentLoaded', () => {
         return d.innerHTML;
     };
 
+    // --- Chiptune SFX (Web Audio, lazy-init on first gesture) --- //
+    let audioCtx: AudioContext | null = null;
+    let sfxMuted = localStorage.getItem('allkitty.muted') === '1';
+
+    const ensureCtx = (): AudioContext | null => {
+        if (sfxMuted) return null;
+        if (!audioCtx) {
+            const Ctor: typeof AudioContext | undefined =
+                (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!Ctor) return null;
+            audioCtx = new Ctor();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    };
+
+    interface BlipOpts {
+        freq: number; dur?: number; type?: OscillatorType;
+        slideTo?: number; vol?: number; delay?: number;
+    }
+    const blip = ({ freq, dur = 0.08, type = 'square', slideTo, vol = 0.08, delay = 0 }: BlipOpts) => {
+        const ctx = ensureCtx();
+        if (!ctx) return;
+        const t0 = ctx.currentTime + delay;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t0);
+        if (slideTo !== undefined) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(vol, t0 + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.02);
+    };
+
+    const sfx = {
+        click:  () => blip({ freq: 880, dur: 0.05, vol: 0.06 }),
+        tick:   () => blip({ freq: 1200, dur: 0.025, vol: 0.04 }),
+        paste:  () => { blip({ freq: 440, slideTo: 880, dur: 0.12, vol: 0.07 }); },
+        munch:  () => blip({ freq: 180, slideTo: 120, dur: 0.06, type: 'sawtooth', vol: 0.05 }),
+        plop:   () => {
+            blip({ freq: 700, slideTo: 90,  dur: 0.32, type: 'sine', vol: 0.12 });
+            blip({ freq: 200, slideTo: 60,  dur: 0.18, type: 'square', vol: 0.06, delay: 0.05 });
+        },
+        happy:  () => {
+            blip({ freq: 660, dur: 0.08, vol: 0.08 });
+            blip({ freq: 880, dur: 0.08, vol: 0.08, delay: 0.1 });
+            blip({ freq: 1320, dur: 0.14, vol: 0.08, delay: 0.2 });
+        },
+        error:  () => {
+            blip({ freq: 220, slideTo: 110, dur: 0.18, type: 'square', vol: 0.09 });
+            blip({ freq: 165, slideTo: 80,  dur: 0.22, type: 'square', vol: 0.07, delay: 0.1 });
+        },
+        purr:   () => blip({ freq: 80, slideTo: 120, dur: 0.4, type: 'triangle', vol: 0.08 }),
+    };
+
+    const toggleMute = () => {
+        sfxMuted = !sfxMuted;
+        localStorage.setItem('allkitty.muted', sfxMuted ? '1' : '0');
+        if (!sfxMuted) sfx.click();
+    };
+
     // --- State --- //
     const state: State = {
         downloadMode: 'video', quality: '1080', codec: 'h264', audioFormat: 'mp3', mute: false
@@ -64,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSettings = $<HTMLButtonElement>('closeSettings');
     const closeInfo = $<HTMLButtonElement>('closeInfo');
     const muteVideoCheckbox = $<HTMLInputElement>('muteVideo');
+    const sfxToggleCheckbox = $<HTMLInputElement>('sfxToggle');
     const segmentedControls = document.querySelectorAll('.segmented-control');
 
     // --- Pixel cat sprites — orange tabby ---
@@ -220,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 frameTickId = setInterval(() => {
                     munchToggle = !munchToggle;
                     renderSprite(catCanvas, munchToggle ? munchOpen : munchClosed, PAL);
+                    sfx.munch();
                 }, 220);
                 break;
             case 'squat':
@@ -323,12 +389,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lastFocused) lastFocused.focus();
     };
 
-    settingsBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(settingsPanel, settingsBtn); });
-    infoBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(infoPanel, infoBtn); });
-    historyBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(historyPanel, historyBtn); });
-    closeSettings.addEventListener('click', () => closePanel(settingsPanel, settingsBtn));
-    closeInfo.addEventListener('click', () => closePanel(infoPanel, infoBtn));
-    closeHistory.addEventListener('click', () => closePanel(historyPanel, historyBtn));
+    settingsBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(settingsPanel, settingsBtn); });
+    infoBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(infoPanel, infoBtn); });
+    historyBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(historyPanel, historyBtn); });
+    closeSettings.addEventListener('click', () => { sfx.tick(); closePanel(settingsPanel, settingsBtn); });
+    closeInfo.addEventListener('click', () => { sfx.tick(); closePanel(infoPanel, infoBtn); });
+    closeHistory.addEventListener('click', () => { sfx.tick(); closePanel(historyPanel, historyBtn); });
 
     window.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
@@ -355,13 +421,14 @@ document.addEventListener('DOMContentLoaded', () => {
             seg.addEventListener('click', () => {
                 segments.forEach(s => s.classList.remove('active'));
                 seg.classList.add('active');
+                sfx.tick();
                 const v = (seg as HTMLElement).dataset.value;
                 if (v !== undefined) (state as any)[key] = v;
             });
         });
     });
 
-    muteVideoCheckbox.addEventListener('change', e => { state.mute = (e.target as HTMLInputElement).checked; });
+    muteVideoCheckbox.addEventListener('change', e => { state.mute = (e.target as HTMLInputElement).checked; sfx.tick(); });
 
     // --- Toasts (DOM-built, no innerHTML) --- //
     const buildIcon = (type: 'success' | 'error' | 'info'): SVGElement => {
@@ -494,10 +561,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => {
             dropPoop(() => {
+                sfx.plop();
                 showToast('plop! download ready', 'success');
                 showThought('deposited!', 2500);
                 setMood('happy');
                 setHunger(4);
+                setTimeout(() => sfx.happy(), 300);
 
                 const a = document.createElement('a');
                 a.href = result.downloadUrl;
@@ -513,6 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const failUI = () => {
         stopProgressShimmer();
+        sfx.error();
         setMood('sad');
         showThought('hairball...', 2000);
         setProgressBar(0);
@@ -576,8 +646,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    saveBtn.addEventListener('click', handleDownload);
+    saveBtn.addEventListener('click', () => { sfx.click(); handleDownload(); });
     cancelBtn.addEventListener('click', () => {
+        sfx.click();
         stopPolling();
         showToast('stopped tracking', 'info');
         showThought('mrow?', 1500);
@@ -601,6 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     videoUrlInput.addEventListener('paste', () => {
         setTimeout(() => {
             if (videoUrlInput.value.trim() && currentMood !== 'munch' && currentMood !== 'squat') {
+                sfx.paste();
                 setMood('sniff');
                 showThought('snifff... a link!');
                 screen.animate(
@@ -613,12 +685,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     catCanvas.addEventListener('click', () => {
         if (currentMood === 'idle' || currentMood === 'sniff') {
+            sfx.purr();
             showThought('purrrr', 1500);
             catCanvas.animate(
                 [{ transform: 'scale(1)' }, { transform: 'scale(1.08) rotate(-2deg)' }, { transform: 'scale(1)' }],
                 { duration: 320, iterations: 1, easing: 'cubic-bezier(.7,-0.4,.3,1.4)' }
             );
         }
+    });
+
+    // Initial sfx toggle state from localStorage
+    sfxToggleCheckbox.checked = !sfxMuted;
+    sfxToggleCheckbox.addEventListener('change', () => {
+        sfxMuted = !sfxToggleCheckbox.checked;
+        localStorage.setItem('allkitty.muted', sfxMuted ? '1' : '0');
+        if (!sfxMuted) sfx.click();
     });
 
     setMood('idle');
