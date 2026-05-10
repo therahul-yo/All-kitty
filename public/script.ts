@@ -483,7 +483,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const node = document.createElement('div');
         node.className = 'poop';
         renderSprite(node, poopSprite, POOP_PAL);
-        const offset = -8 + Math.floor(Math.random() * 32);
+        // Anchor just behind the tail (right side of cat); small jitter only
+        const offset = 18 + Math.floor(Math.random() * 12);
         node.style.left = `calc(50% + ${offset}px)`;
         poopStage.appendChild(node);
 
