@@ -13,147 +13,322 @@ document.addEventListener('DOMContentLoaded', () => {
         audioFormat: string;
         mute: boolean;
     }
-
-    interface ToastJob {
-        msg: string;
-        type: 'success' | 'error' | 'info';
-    }
-
+    interface ToastJob { msg: string; type: 'success' | 'error' | 'info'; }
     interface HistoryItem {
-        id: string;
-        url: string;
-        format: string;
-        filename: string;
-        status: string;
-        created_at: string;
-        file_size: number;
+        id: string; url: string; format: string; filename: string;
+        status: string; created_at: string; file_size: number;
     }
+    type CatMood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad';
+
+    const escapeHtml = (s: string): string => {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    };
 
     // --- State --- //
     const state: State = {
-        downloadMode: 'video',
-        quality: '1080',
-        codec: 'h264',
-        audioFormat: 'mp3',
-        mute: false
+        downloadMode: 'video', quality: '1080', codec: 'h264', audioFormat: 'mp3', mute: false
     };
-
-    let currentAbortController: AbortController | null = null;
     let toastQueue: ToastJob[] = [];
     let activeToasts = 0;
     let pollIntervalId: any = null;
+    let blinkIntervalId: any = null;
+    let frameTickId: any = null;
+    let progressTickId: any = null;
 
-    // --- DOM Elements --- //
-    const videoUrlInput = document.getElementById('videoUrl') as HTMLInputElement;
-    const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
-    const cancelBtn = document.getElementById('cancelBtn') as HTMLButtonElement;
-    const statusMessage = document.getElementById('statusMessage') as HTMLDivElement;
-    const toastContainer = document.getElementById('toastContainer') as HTMLDivElement;
-    const mascotContainer = document.getElementById('mascotContainer') as HTMLDivElement;
-    
-    const queueProgressContainer = document.getElementById('queueProgressContainer') as HTMLDivElement;
-    const queueProgressBar = document.getElementById('queueProgressBar') as HTMLDivElement;
-    const queueProgressText = document.getElementById('queueProgressText') as HTMLSpanElement;
+    // --- DOM --- //
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+    const videoUrlInput = $<HTMLInputElement>('videoUrl');
+    const saveBtn = $<HTMLButtonElement>('saveBtn');
+    const cancelBtn = $<HTMLButtonElement>('cancelBtn');
+    const toastContainer = $<HTMLDivElement>('toastContainer');
+    const screen = $<HTMLDivElement>('screen');
+    const catCanvas = $<HTMLDivElement>('catCanvas');
+    const poopStage = $<HTMLDivElement>('poopStage');
+    const thought = $<HTMLDivElement>('thought');
+    const thoughtBox = $<HTMLDivElement>('thoughtBox');
+    const lcdState = $<HTMLSpanElement>('lcdState');
+    const lcdHunger = $<HTMLSpanElement>('lcdHunger');
+    const lcdBarFill = $<HTMLDivElement>('lcdBarFill');
+    const powerLed = $<HTMLSpanElement>('powerLed');
 
-    const historyBtn = document.getElementById('historyBtn') as HTMLButtonElement;
-    const historyPanel = document.getElementById('historyPanel') as HTMLDivElement;
-    const historyList = document.getElementById('historyList') as HTMLDivElement;
-    const closeHistory = document.getElementById('closeHistory') as HTMLButtonElement;
-
-    const settingsBtn = document.getElementById('settingsBtn') as HTMLButtonElement;
-    const infoBtn = document.getElementById('infoBtn') as HTMLButtonElement;
-    const settingsPanel = document.getElementById('settingsPanel') as HTMLDivElement;
-    const infoPanel = document.getElementById('infoPanel') as HTMLDivElement;
-    const closeSettings = document.getElementById('closeSettings') as HTMLButtonElement;
-    const closeInfo = document.getElementById('closeInfo') as HTMLButtonElement;
-    
-    const muteVideoCheckbox = document.getElementById('muteVideo') as HTMLInputElement;
+    const historyBtn = $<HTMLButtonElement>('historyBtn');
+    const historyPanel = $<HTMLDivElement>('historyPanel');
+    const historyList = $<HTMLDivElement>('historyList');
+    const closeHistory = $<HTMLButtonElement>('closeHistory');
+    const settingsBtn = $<HTMLButtonElement>('settingsBtn');
+    const infoBtn = $<HTMLButtonElement>('infoBtn');
+    const settingsPanel = $<HTMLDivElement>('settingsPanel');
+    const infoPanel = $<HTMLDivElement>('infoPanel');
+    const closeSettings = $<HTMLButtonElement>('closeSettings');
+    const closeInfo = $<HTMLButtonElement>('closeInfo');
+    const muteVideoCheckbox = $<HTMLInputElement>('muteVideo');
     const segmentedControls = document.querySelectorAll('.segmented-control');
 
-    // --- Focus Management Helpers --- //
-    const getKeyboardFocusableElements = (element: HTMLElement): HTMLElement[] => {
-        return [...element.querySelectorAll(
-            'a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])'
-        )].filter(el => {
-            const castEl = el as HTMLElement;
-            return !castEl.hasAttribute('disabled') && castEl.getAttribute('aria-hidden') !== 'true';
-        }) as HTMLElement[];
+    // --- Pixel cat sprites ---
+    // Palette keys → CSS color
+    const PAL: Record<string, string> = {
+        '.': 'transparent',
+        'B': '#1c2a16',
+        'L': '#8fbc63',
+        'M': '#4f7042',
+        'P': '#ff8fc0',
+        'E': '#1c2a16',
+        'W': '#cfe7a8',
+        'C': '#ff5fa0',
+        'T': '#1c2a16',
+        'Y': '#ffe14a',
+        'Z': '#ff2e88',
     };
 
-    const trapFocus = (e: KeyboardEvent, panel: HTMLElement) => {
-        const focusableElements = getKeyboardFocusableElements(panel);
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
+    // 24 × 20 sprite. Each row is exactly 24 chars.
+    const idleFrame = [
+        '........................',
+        '....BB............BB....',
+        '...BLLB..........BLLB...',
+        '..BLLLBBBBBBBBBBBBLLLB..',
+        '..BLLLLLLLLLLLLLLLLLLB..',
+        '.BLLLLLLLLLLLLLLLLLLLLB.',
+        '.BLLLLLLLLLLLLLLLLLLLLB.',
+        '.BLLEEBLLLLLLLLLBEELLLB.',
+        '.BLLEEBLLLLPPLLLLBEELLB.',
+        '.BLLLLLLLCLPPLCLLLLLLLB.',
+        '.BLLLLLLMLMMMMLMLLLLLLB.',
+        '.BLLLLLLLMMMMMMLLLLLLLB.',
+        '..BLLLLLLLLLLLLLLLLLLB..',
+        '...BBLLLLLLLLLLLLLLBB...',
+        '.....BLLLLLLLLLLLLB.....',
+        '.....BLLBLLLLLLBLLB..BB.',
+        '.....BLLBLLLLLLBLLBBBLB.',
+        '.....BLLBLLLLLLBLLBLLB..',
+        '.....BBBBBBBBBBBBBBBB...',
+        '........................',
+    ];
 
-        if (e.key === 'Tab') {
-            if (e.shiftKey) { // Shift + Tab
-                if (document.activeElement === firstElement) {
-                    lastElement.focus();
-                    e.preventDefault();
-                }
-            } else { // Tab
-                if (document.activeElement === lastElement) {
-                    firstElement.focus();
-                    e.preventDefault();
-                }
+    const blinkFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
+        return r;
+    });
+
+    const sniffFrame = idleFrame.map((r, i) => {
+        if (i === 9) return '.BLLLLLLLCLZZLCLLLLLLLB.';
+        return r;
+    });
+
+    const munchOpen = idleFrame.map((r, i) => {
+        if (i === 9)  return '.BLLLLLLBBYYYYBBLLLLLLB.';
+        if (i === 10) return '.BLLLLLBYZZZZZZYBLLLLLB.';
+        if (i === 11) return '.BLLLLLBYYZZZZYYBLLLLLB.';
+        if (i === 12) return '..BLLLLBBYYYYYYBBLLLLB..';
+        return r;
+    });
+    const munchClosed = idleFrame.map((r, i) => {
+        if (i === 9)  return '.BLLLLLLLCLPPLCLLLLLLLB.';
+        if (i === 10) return '.BLLLLLLLLZZZZLLLLLLLLB.';
+        return r;
+    });
+
+    const squatFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
+        return r;
+    });
+
+    const happyFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
+        if (i === 8) return '.BLBBLBLLLLPPLLLLBLLBBB.';
+        return r;
+    });
+
+    const sadFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
+        if (i === 8) return '.BLLEEBLLLLPPLLLLBEELLB.';
+        if (i === 9) return '.BLLEEBLLLLCCLLLLBEELLB.';
+        return r;
+    });
+
+    // Poop sprite — 12 × 10
+    const poopSprite = [
+        '....BBBB....',
+        '...BPPPPB...',
+        '..BPHHHPPB..',
+        '.BPHHHHHPPB.',
+        'BPHHHKHHHHPB',
+        'BPPHHKHHHPPB',
+        'BHPPHHHPPHHB',
+        'BPPHPPPHPPHB',
+        '.BBPPPPPPBB.',
+        '..BBBBBBBB..',
+    ];
+    const POOP_PAL: Record<string, string> = {
+        '.': 'transparent',
+        'B': '#1c2a16',
+        'P': '#6b3a1a',
+        'H': '#a35a26',
+        'K': '#ffe14a',
+    };
+
+    const renderSprite = (host: HTMLElement, rows: string[], palette: Record<string,string>) => {
+        while (host.firstChild) host.removeChild(host.firstChild);
+        const frag = document.createDocumentFragment();
+        for (const row of rows) {
+            for (const ch of row) {
+                const cell = document.createElement('span');
+                cell.className = 'px';
+                const c = palette[ch] || 'transparent';
+                if (c !== 'transparent') cell.style.background = c;
+                frag.appendChild(cell);
             }
         }
+        host.appendChild(frag);
     };
 
-    let lastFocusedElement: HTMLElement | null = null;
+    // --- Cat state machine ---
+    let currentMood: CatMood = 'idle';
+    let munchToggle = false;
+
+    const setMood = (mood: CatMood) => {
+        currentMood = mood;
+        screen.dataset.state = mood;
+        if (frameTickId) { clearInterval(frameTickId); frameTickId = null; }
+        if (blinkIntervalId) { clearInterval(blinkIntervalId); blinkIntervalId = null; }
+
+        switch (mood) {
+            case 'idle':
+                renderSprite(catCanvas, idleFrame, PAL);
+                lcdState.textContent = '> idle';
+                powerLed.dataset.state = 'idle';
+                blinkIntervalId = setInterval(() => {
+                    renderSprite(catCanvas, blinkFrame, PAL);
+                    setTimeout(() => {
+                        if (currentMood === 'idle') renderSprite(catCanvas, idleFrame, PAL);
+                    }, 140);
+                }, 3200 + Math.random() * 1500);
+                break;
+            case 'sniff':
+                renderSprite(catCanvas, sniffFrame, PAL);
+                lcdState.textContent = '> sniff..';
+                powerLed.dataset.state = 'idle';
+                break;
+            case 'munch':
+                lcdState.textContent = '> munch';
+                powerLed.dataset.state = 'busy';
+                frameTickId = setInterval(() => {
+                    munchToggle = !munchToggle;
+                    renderSprite(catCanvas, munchToggle ? munchOpen : munchClosed, PAL);
+                }, 220);
+                break;
+            case 'squat':
+                renderSprite(catCanvas, squatFrame, PAL);
+                lcdState.textContent = '> squat!';
+                powerLed.dataset.state = 'alert';
+                break;
+            case 'happy':
+                renderSprite(catCanvas, happyFrame, PAL);
+                lcdState.textContent = '> happy';
+                powerLed.dataset.state = 'happy';
+                break;
+            case 'sad':
+                renderSprite(catCanvas, sadFrame, PAL);
+                lcdState.textContent = '> sad';
+                powerLed.dataset.state = 'alert';
+                break;
+        }
+    };
+
+    const showThought = (msg: string, ttl = 0) => {
+        thoughtBox.textContent = msg;
+        thought.classList.add('show');
+        if (ttl > 0) setTimeout(() => thought.classList.remove('show'), ttl);
+    };
+    const hideThought = () => thought.classList.remove('show');
+
+    const setProgressBar = (pct: number) => {
+        lcdBarFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    };
+
+    const setHunger = (hearts: number) => {
+        const filled = '@'.repeat(Math.max(0, Math.min(4, hearts)));
+        const empty = '.'.repeat(4 - filled.length);
+        lcdHunger.textContent = filled + empty;
+    };
+
+    const startProgressShimmer = () => {
+        if (progressTickId) return;
+        let p = 5; let dir = 1;
+        progressTickId = setInterval(() => {
+            p += dir * (Math.random() * 6 + 2);
+            if (p > 92) { p = 92; dir = -1; }
+            if (p < 8)  { p = 8;  dir = 1; }
+            setProgressBar(p);
+        }, 320);
+    };
+    const stopProgressShimmer = () => {
+        if (progressTickId) { clearInterval(progressTickId); progressTickId = null; }
+    };
+
+    // --- Poop drop ---
+    const dropPoop = (onLanded: () => void) => {
+        const node = document.createElement('div');
+        node.className = 'poop';
+        renderSprite(node, poopSprite, POOP_PAL);
+        const offset = -8 + Math.floor(Math.random() * 32);
+        node.style.left = `calc(50% + ${offset}px)`;
+        poopStage.appendChild(node);
+
+        setTimeout(onLanded, 700);
+        setTimeout(() => {
+            const all = poopStage.querySelectorAll('.poop');
+            if (all.length > 3) all[0].remove();
+        }, 1400);
+    };
+
+    // --- Panels --- //
+    const getKeyboardFocusableElements = (el: HTMLElement): HTMLElement[] =>
+        [...el.querySelectorAll('a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])')]
+            .filter(e => !e.hasAttribute('disabled') && e.getAttribute('aria-hidden') !== 'true') as HTMLElement[];
+
+    const trapFocus = (e: KeyboardEvent, panel: HTMLElement) => {
+        const f = getKeyboardFocusableElements(panel);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.key === 'Tab') {
+            if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+            else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+        }
+    };
+
+    let lastFocused: HTMLElement | null = null;
 
     const openPanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
-        lastFocusedElement = document.activeElement as HTMLElement;
+        lastFocused = document.activeElement as HTMLElement;
         panel.classList.add('open');
         trigger.setAttribute('aria-expanded', 'true');
-        
-        const container = panel.querySelector('.panel-container') as HTMLElement;
-        container.focus();
-        
-        const focusTrapHandler = (e: KeyboardEvent) => trapFocus(e, container);
-        (panel as any)._focusTrap = focusTrapHandler;
-        panel.addEventListener('keydown', focusTrapHandler);
-
-        if (panel === historyPanel) {
-            fetchHistory();
-        }
+        const c = panel.querySelector('.panel-container') as HTMLElement;
+        c.focus();
+        const handler = (e: KeyboardEvent) => trapFocus(e, c);
+        (panel as any)._focusTrap = handler;
+        panel.addEventListener('keydown', handler);
+        if (panel === historyPanel) fetchHistory();
     };
 
     const closePanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
         panel.classList.remove('open');
         trigger.setAttribute('aria-expanded', 'false');
-        
-        if ((panel as any)._focusTrap) {
-            panel.removeEventListener('keydown', (panel as any)._focusTrap);
-        }
-        
-        if (lastFocusedElement) {
-            lastFocusedElement.focus();
-        }
+        if ((panel as any)._focusTrap) panel.removeEventListener('keydown', (panel as any)._focusTrap);
+        if (lastFocused) lastFocused.focus();
     };
 
-    // --- UI Interactions --- //
-
-    settingsBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPanel(settingsPanel, settingsBtn);
-    });
-    
-    infoBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPanel(infoPanel, infoBtn);
-    });
-
-    historyBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPanel(historyPanel, historyBtn);
-    });
-
+    settingsBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(settingsPanel, settingsBtn); });
+    infoBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(infoPanel, infoBtn); });
+    historyBtn.addEventListener('click', e => { e.stopPropagation(); openPanel(historyPanel, historyBtn); });
     closeSettings.addEventListener('click', () => closePanel(settingsPanel, settingsBtn));
     closeInfo.addEventListener('click', () => closePanel(infoPanel, infoBtn));
     closeHistory.addEventListener('click', () => closePanel(historyPanel, historyBtn));
 
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
+    window.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             if (settingsPanel.classList.contains('open')) closePanel(settingsPanel, settingsBtn);
             if (infoPanel.classList.contains('open')) closePanel(infoPanel, infoBtn);
@@ -161,67 +336,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    window.addEventListener('click', (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (settingsPanel.classList.contains('open') && !settingsPanel.querySelector('.panel-container')?.contains(target)) {
-            closePanel(settingsPanel, settingsBtn);
-        }
-        if (infoPanel.classList.contains('open') && !infoPanel.querySelector('.panel-container')?.contains(target)) {
-            closePanel(infoPanel, infoBtn);
-        }
-        if (historyPanel.classList.contains('open') && !historyPanel.querySelector('.panel-container')?.contains(target)) {
-            closePanel(historyPanel, historyBtn);
-        }
+    window.addEventListener('click', e => {
+        const t = e.target as HTMLElement;
+        const checkClose = (panel: HTMLElement, btn: HTMLButtonElement) => {
+            if (panel.classList.contains('open') && !panel.querySelector('.panel-container')?.contains(t)) closePanel(panel, btn);
+        };
+        checkClose(settingsPanel, settingsBtn);
+        checkClose(infoPanel, infoBtn);
+        checkClose(historyPanel, historyBtn);
     });
 
     segmentedControls.forEach(control => {
         const key = (control as HTMLElement).dataset.state as keyof State;
         const segments = control.querySelectorAll('.segment');
-        
-        segments.forEach(segment => {
-            segment.addEventListener('click', () => {
+        segments.forEach(seg => {
+            seg.addEventListener('click', () => {
                 segments.forEach(s => s.classList.remove('active'));
-                segment.classList.add('active');
-                const val = (segment as HTMLElement).dataset.value;
-                if (val !== undefined) {
-                    (state as any)[key] = val;
-                }
+                seg.classList.add('active');
+                const v = (seg as HTMLElement).dataset.value;
+                if (v !== undefined) (state as any)[key] = v;
             });
         });
     });
 
-    muteVideoCheckbox.addEventListener('change', (e) => {
-        state.mute = (e.target as HTMLInputElement).checked;
-    });
+    muteVideoCheckbox.addEventListener('change', e => { state.mute = (e.target as HTMLInputElement).checked; });
 
-    // --- Download Logic --- //
-
-    const fetchHistory = async () => {
-        try {
-            const res = await fetch('/api/history');
-            const data = await res.json();
-            renderHistory(data);
-        } catch (err) {
-            historyList.innerHTML = '<p class="small-text">failed to load history.</p>';
+    // --- Toasts (DOM-built, no innerHTML) --- //
+    const buildIcon = (type: 'success' | 'error' | 'info'): SVGElement => {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('class', 'toast-icon');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '3');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        const make = (tag: string, attrs: Record<string,string>) => {
+            const el = document.createElementNS(ns, tag);
+            for (const k in attrs) el.setAttribute(k, attrs[k]);
+            return el;
+        };
+        if (type === 'success') {
+            svg.appendChild(make('polyline', { points: '20 6 9 17 4 12' }));
+        } else if (type === 'error') {
+            svg.appendChild(make('line', { x1: '18', y1: '6', x2: '6', y2: '18' }));
+            svg.appendChild(make('line', { x1: '6',  y1: '6', x2: '18', y2: '18' }));
+        } else {
+            svg.appendChild(make('circle', { cx: '12', cy: '12', r: '9' }));
+            svg.appendChild(make('line', { x1: '12', y1: '8', x2: '12', y2: '13' }));
+            svg.appendChild(make('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' }));
         }
-    };
-
-    const renderHistory = (items: HistoryItem[]) => {
-        if (items.length === 0) {
-            historyList.innerHTML = '<p class="small-text">no recent downloads.</p>';
-            return;
-        }
-
-        historyList.innerHTML = items.map(item => `
-            <div class="history-item">
-                <div class="history-item-top">
-                    <span>${new Date(item.created_at).toLocaleDateString()}</span>
-                    <span>${item.status}</span>
-                </div>
-                <div class="history-item-title">${item.filename || item.url}</div>
-                ${item.status === 'completed' ? `<a href="${item.url}" class="small-text" style="color: var(--accent-orange)">redownload</a>` : ''}
-            </div>
-        `).join('');
+        return svg;
     };
 
     const processToastQueue = () => {
@@ -232,24 +398,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const createToast = (msg: string, type: 'success' | 'error' | 'info') => {
         activeToasts++;
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        let icon = '';
-        if (type === 'success') {
-            icon = '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-        } else if (type === 'error') {
-            icon = '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-        }
-        toast.innerHTML = `${icon}<span>${msg}</span>`;
-        toastContainer.appendChild(toast);
-        requestAnimationFrame(() => setTimeout(() => toast.classList.add('show'), 10));
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.appendChild(buildIcon(type));
+        const span = document.createElement('span');
+        span.textContent = msg;
+        t.appendChild(span);
+        toastContainer.appendChild(t);
+        requestAnimationFrame(() => setTimeout(() => t.classList.add('show'), 10));
         setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => {
-                toast.remove();
-                activeToasts--;
-                processToastQueue();
-            }, TOAST_REMOVE_DELAY);
+            t.classList.remove('show');
+            setTimeout(() => { t.remove(); activeToasts--; processToastQueue(); }, TOAST_REMOVE_DELAY);
         }, TOAST_DURATION);
     };
 
@@ -258,104 +417,140 @@ document.addEventListener('DOMContentLoaded', () => {
         processToastQueue();
     };
 
-    const showStatus = (msg: string, type: string = '') => {
-        statusMessage.textContent = msg;
-        statusMessage.className = 'status-msg ' + type;
+    // --- History --- //
+    const fetchHistory = async () => {
+        try {
+            const res = await fetch('/api/history');
+            const data = await res.json();
+            renderHistory(data);
+        } catch {
+            historyList.textContent = '';
+            const p = document.createElement('p');
+            p.className = 'small-text';
+            p.textContent = 'litter box jammed.';
+            historyList.appendChild(p);
+        }
     };
 
+    const renderHistory = (items: HistoryItem[]) => {
+        historyList.textContent = '';
+        if (items.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'small-text';
+            p.textContent = 'no recent poops.';
+            historyList.appendChild(p);
+            return;
+        }
+        for (const item of items) {
+            const wrap = document.createElement('div');
+            wrap.className = 'history-item';
+            const top = document.createElement('div');
+            top.className = 'history-item-top';
+            const dateSpan = document.createElement('span');
+            dateSpan.textContent = new Date(item.created_at).toLocaleDateString();
+            const statusSpan = document.createElement('span');
+            statusSpan.textContent = item.status;
+            top.append(dateSpan, statusSpan);
+            const title = document.createElement('div');
+            title.className = 'history-item-title';
+            title.textContent = item.filename || item.url;
+            wrap.append(top, title);
+            historyList.appendChild(wrap);
+        }
+    };
+
+    // --- Download --- //
     const pollJobStatus = (jobId: string) => {
         pollIntervalId = setInterval(async () => {
             try {
                 const res = await fetch(`/api/queue/${jobId}`);
                 if (!res.ok) throw new Error('Job lost');
-                
                 const job = await res.json();
-                
-                if (job.state === 'completed') {
-                    stopPolling();
-                    handleDownloadComplete(job.result);
-                } else if (job.state === 'failed') {
-                    stopPolling();
-                    showToast(job.failedReason || 'download failed', 'error');
-                    resetUI();
-                } else {
-                    updateQueueProgress(job.state);
-                }
-            } catch (err) {
+                if (job.state === 'completed') { stopPolling(); handleDownloadComplete(job.result); }
+                else if (job.state === 'failed') { stopPolling(); showToast(job.failedReason || 'download failed', 'error'); failUI(); }
+                else updateQueueProgress(job.state);
+            } catch {
                 stopPolling();
                 showToast('lost connection to job', 'error');
-                resetUI();
+                failUI();
             }
         }, POLL_INTERVAL);
     };
 
-    const stopPolling = () => {
-        if (pollIntervalId) {
-            clearInterval(pollIntervalId);
-            pollIntervalId = null;
-        }
-    };
+    const stopPolling = () => { if (pollIntervalId) { clearInterval(pollIntervalId); pollIntervalId = null; } };
 
-    const updateQueueProgress = (state: string) => {
-        queueProgressContainer.style.display = 'flex';
-        if (state === 'active') {
-            queueProgressText.textContent = 'processing on server...';
-            queueProgressBar.style.width = '50%';
-        } else {
-            queueProgressText.textContent = 'waiting in queue...';
-            queueProgressBar.style.width = '20%';
-        }
+    const updateQueueProgress = (s: string) => {
+        if (s === 'active') { lcdState.textContent = '> chewing..'; setHunger(2); }
+        else                { lcdState.textContent = '> in queue'; setHunger(3); }
     };
 
     const handleDownloadComplete = (result: any) => {
-        showToast('download ready!', 'success');
-        showStatus('');
-        
-        const a = document.createElement('a');
-        a.href = result.downloadUrl;
-        a.download = result.filename || 'allkitty_media';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        resetUI();
+        stopProgressShimmer();
+        setProgressBar(100);
+        setMood('squat');
+        showThought('here it comes...', 1200);
+
+        setTimeout(() => {
+            dropPoop(() => {
+                showToast('plop! download ready', 'success');
+                showThought('deposited!', 2500);
+                setMood('happy');
+                setHunger(4);
+
+                const a = document.createElement('a');
+                a.href = result.downloadUrl;
+                a.download = result.filename || 'allkitty_media';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                setTimeout(() => { resetUI(); }, 2200);
+            });
+        }, 600);
+    };
+
+    const failUI = () => {
+        stopProgressShimmer();
+        setMood('sad');
+        showThought('hairball...', 2000);
+        setProgressBar(0);
+        setHunger(1);
+        setTimeout(resetUI, 2200);
     };
 
     const resetUI = () => {
         saveBtn.disabled = false;
-        saveBtn.textContent = 'download';
-        mascotContainer.classList.remove('eating');
+        const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'FEED';
         cancelBtn.style.display = 'none';
-        queueProgressContainer.style.display = 'none';
-        showStatus('');
+        setProgressBar(0);
+        setHunger(4);
+        setMood(videoUrlInput.value.trim() ? 'sniff' : 'idle');
+        if (!videoUrlInput.value.trim()) hideThought();
     };
 
     const handleDownload = async () => {
         const url = videoUrlInput.value.trim();
         if (!url) {
             showToast('paste a link first', 'error');
+            setMood('sad');
+            showThought('feed me a link', 1800);
+            setTimeout(() => setMood('idle'), 800);
             return;
         }
 
         saveBtn.disabled = true;
-        saveBtn.textContent = 'queuing...';
-        showStatus('queuing...', 'success');
-        mascotContainer.classList.add('eating');
-        cancelBtn.style.display = 'block';
+        const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'WAIT';
+        cancelBtn.style.display = 'inline-flex';
+        setMood('munch');
+        showThought('nom nom...');
+        startProgressShimmer();
+        setHunger(3);
 
         try {
-            let formatParam = state.downloadMode;
-            if (state.downloadMode === 'video' && state.mute) {
-                formatParam = 'mute';
-            }
+            let formatParam: string = state.downloadMode;
+            if (state.downloadMode === 'video' && state.mute) formatParam = 'mute';
 
-            const payload = {
-                url,
-                format: formatParam,
-                quality: state.quality,
-                codec: state.codec,
-                container: 'auto'
-            };
+            const payload = { url, format: formatParam, quality: state.quality, codec: state.codec, container: 'auto' };
 
             const response = await fetch('/api/download', {
                 method: 'POST',
@@ -364,8 +559,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'failed to queue');
+                const err = await response.json();
+                throw new Error(err.error || 'failed to queue');
             }
 
             const data = await response.json();
@@ -374,24 +569,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 pollJobStatus(data.jobId);
             }
         } catch (error: any) {
-            showToast(error.message || 'error: server unreachable', 'error');
-            resetUI();
+            showToast(error.message || 'server unreachable', 'error');
+            failUI();
         }
     };
 
     saveBtn.addEventListener('click', handleDownload);
-
-    cancelBtn.addEventListener('click', async () => {
-        // Find jobId from state if possible or current tracking
-        // For simplicity, we assume one active download per client session
-        // In a real app, we'd track the jobId more formally
-        // For this demo, let's just stop polling and reset UI
+    cancelBtn.addEventListener('click', () => {
         stopPolling();
+        showToast('stopped tracking', 'info');
+        showThought('mrow?', 1500);
         resetUI();
-        showToast('stopped tracking download', 'info');
     });
 
-    videoUrlInput.addEventListener('keypress', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') handleDownload();
+    videoUrlInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleDownload(); });
+
+    videoUrlInput.addEventListener('input', () => {
+        if (currentMood === 'idle' || currentMood === 'sniff' || currentMood === 'happy' || currentMood === 'sad') {
+            if (videoUrlInput.value.trim()) {
+                setMood('sniff');
+                showThought('mmm... smells linkable');
+            } else {
+                hideThought();
+                setMood('idle');
+            }
+        }
     });
+
+    videoUrlInput.addEventListener('paste', () => {
+        setTimeout(() => {
+            if (videoUrlInput.value.trim() && currentMood !== 'munch' && currentMood !== 'squat') {
+                setMood('sniff');
+                showThought('snifff... a link!');
+                screen.animate(
+                    [{ transform: 'translate(0,0)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(2px,-1px)' }, { transform: 'translate(0,0)' }],
+                    { duration: 220, iterations: 1, easing: 'steps(4)' }
+                );
+            }
+        }, 0);
+    });
+
+    catCanvas.addEventListener('click', () => {
+        if (currentMood === 'idle' || currentMood === 'sniff') {
+            showThought('purrrr', 1500);
+            catCanvas.animate(
+                [{ transform: 'scale(1)' }, { transform: 'scale(1.08) rotate(-2deg)' }, { transform: 'scale(1)' }],
+                { duration: 320, iterations: 1, easing: 'cubic-bezier(.7,-0.4,.3,1.4)' }
+            );
+        }
+    });
+
+    setMood('idle');
+    setHunger(4);
+    setProgressBar(0);
+    showThought('paste a link, hooman', 3500);
 });
