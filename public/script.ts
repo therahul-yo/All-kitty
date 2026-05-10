@@ -66,42 +66,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const muteVideoCheckbox = $<HTMLInputElement>('muteVideo');
     const segmentedControls = document.querySelectorAll('.segmented-control');
 
-    // --- Pixel cat sprites ---
-    // Palette keys → CSS color
+    // --- Pixel cat sprites — orange tabby ---
+    // L = light orange fill, M = darker orange (stripes/shadow), N = cream belly
     const PAL: Record<string, string> = {
         '.': 'transparent',
-        'B': '#1c2a16',
-        'L': '#8fbc63',
-        'M': '#4f7042',
-        'P': '#ff8fc0',
-        'E': '#1c2a16',
-        'W': '#cfe7a8',
-        'C': '#ff5fa0',
-        'T': '#1c2a16',
-        'Y': '#ffe14a',
-        'Z': '#ff2e88',
+        'B': '#2a0d00',   // dark outline
+        'L': '#ff9a3c',   // main orange
+        'M': '#c44a08',   // tabby stripe / shadow
+        'N': '#ffe0b8',   // cream belly / muzzle
+        'P': '#ff7aa8',   // pink nose
+        'E': '#1a0500',   // eye
+        'W': '#ffffff',   // eye highlight
+        'C': '#ff8fb8',   // pink cheek
+        'T': '#2a0d00',   // closed eye line
+        'Y': '#fff2b0',   // teeth
+        'Z': '#ff3d6e',   // tongue
     };
 
     // 24 × 20 sprite. Each row is exactly 24 chars.
+    // Tabby markings: forehead M, back stripes, cream belly (N), white muzzle.
     const idleFrame = [
         '........................',
         '....BB............BB....',
         '...BLLB..........BLLB...',
         '..BLLLBBBBBBBBBBBBLLLB..',
-        '..BLLLLLLLLLLLLLLLLLLB..',
-        '.BLLLLLLLLLLLLLLLLLLLLB.',
-        '.BLLLLLLLLLLLLLLLLLLLLB.',
-        '.BLLEEBLLLLLLLLLBEELLLB.',
+        '..BLLMLLLLLLLLLLLLMLLB..',
+        '.BLLMMLLLLLLLLLLLLMMLLB.',
+        '.BLLLLLLMMLLLLMMLLLLLLB.',
+        '.BLLWEBLLLLLLLLLBEWLLLB.',
         '.BLLEEBLLLLPPLLLLBEELLB.',
-        '.BLLLLLLLCLPPLCLLLLLLLB.',
-        '.BLLLLLLMLMMMMLMLLLLLLB.',
-        '.BLLLLLLLMMMMMMLLLLLLLB.',
-        '..BLLLLLLLLLLLLLLLLLLB..',
-        '...BBLLLLLLLLLLLLLLBB...',
-        '.....BLLLLLLLLLLLLB.....',
-        '.....BLLBLLLLLLBLLB..BB.',
-        '.....BLLBLLLLLLBLLBBBLB.',
-        '.....BLLBLLLLLLBLLBLLB..',
+        '.BLLLLLLNCPPCNLLLLLLLLB.',
+        '.BLLLLNNNNNNNNNNNNLLLLB.',
+        '.BLLLMLLLNNNNNNLLLMLLLB.',
+        '..BLMMLLNNNNNNNNNNLMMLB.',
+        '...BBLLNNNNNNNNNNNNLBB..',
+        '.....BNNNNNNNNNNNNB.....',
+        '.....BLLBNNNNNNBLLB..BB.',
+        '.....BLLBNNNNNNBLLBBBLB.',
+        '.....BLLBNNNNNNBLLBLLB..',
         '.....BBBBBBBBBBBBBBBB...',
         '........................',
     ];
