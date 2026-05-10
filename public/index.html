@@ -15,51 +15,65 @@
     <div class="scanlines" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
 
-    <!-- Giant pixel hands holding the console -->
-    <svg class="hand hand-left" viewBox="0 0 40 64" preserveAspectRatio="xMaxYMax meet" aria-hidden="true" shape-rendering="crispEdges">
+    <!-- Cartoon hands holding the console -->
+    <svg class="hand hand-left" viewBox="0 0 200 320" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
         <defs>
-            <linearGradient id="skinL" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#d99868"/>
-                <stop offset=".55" stop-color="#f0c898"/>
-                <stop offset="1" stop-color="#b87848"/>
+            <linearGradient id="skinL" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fcd6a8"/>
+                <stop offset="1" stop-color="#e8a872"/>
             </linearGradient>
         </defs>
-        <!-- forearm extending off-bottom -->
-        <rect x="14" y="34" width="22" height="32" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
+        <!-- forearm -->
+        <path d="M 55 320 L 55 200 Q 55 165 100 160 Q 145 165 145 200 L 145 320 Z"
+              fill="url(#skinL)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
         <!-- wrist crease -->
-        <rect x="15" y="34" width="20" height="2" fill="#9a5a30" opacity=".55"/>
-        <!-- palm/back of hand -->
-        <rect x="10" y="22" width="28" height="14" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
-        <!-- thumb sticking up over the device front -->
-        <rect x="28" y="10" width="9" height="14" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="29" y="11" width="2" height="3" fill="#fff" opacity=".4"/>
-        <!-- knuckle bumps (fingers wrapping behind) -->
-        <rect x="11"  y="18" width="6" height="6" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="17.5" y="17" width="6" height="7" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="24"  y="18" width="6" height="6" fill="url(#skinL)" stroke="#2a0d00" stroke-width="1"/>
-        <!-- palm shadow -->
-        <rect x="11" y="32" width="26" height="2" fill="#9a5a30" opacity=".5"/>
-        <!-- knuckle highlight -->
-        <rect x="12" y="23" width="20" height="1" fill="#fff" opacity=".25"/>
+        <path d="M 60 178 Q 100 168 140 178" stroke="#a96a3a" stroke-width="3" fill="none" opacity=".7" stroke-linecap="round"/>
+        <!-- palm / back of fist -->
+        <path d="M 40 180 Q 25 95 80 65 Q 135 50 170 90 Q 180 135 175 175 Q 170 205 100 205 Q 35 205 40 180 Z"
+              fill="url(#skinL)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
+        <!-- thumb wrapping the side of the device -->
+        <path d="M 152 90 Q 198 65 196 30 Q 192 8 168 12 Q 140 22 138 75 Q 142 92 152 90 Z"
+              fill="url(#skinL)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
+        <ellipse cx="180" cy="35" rx="7" ry="11" fill="#fde8c8" stroke="#3d1a08" stroke-width="2"/>
+        <!-- four fingertips peeking over the top -->
+        <path d="M 55 78 Q 65 50 84 56 Q 93 70 88 88 Q 72 92 55 82 Z" fill="url(#skinL)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 82 64 Q 92 38 110 44 Q 119 58 115 78 Q 100 82 82 72 Z" fill="url(#skinL)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 108 56 Q 118 32 136 38 Q 145 52 141 72 Q 126 76 108 66 Z" fill="url(#skinL)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 132 62 Q 142 42 158 48 Q 165 60 158 80 Q 144 84 130 74 Z" fill="url(#skinL)" stroke="#3d1a08" stroke-width="4"/>
+        <!-- knuckle dimples -->
+        <circle cx="76" cy="80" r="2.5" fill="#a96a3a"/>
+        <circle cx="100" cy="74" r="2.5" fill="#a96a3a"/>
+        <circle cx="125" cy="73" r="2.5" fill="#a96a3a"/>
+        <circle cx="148" cy="78" r="2.5" fill="#a96a3a"/>
+        <!-- soft highlights -->
+        <ellipse cx="70" cy="135" rx="14" ry="30" fill="#fff" opacity=".22"/>
+        <ellipse cx="90" cy="240" rx="22" ry="18" fill="#fff" opacity=".15"/>
     </svg>
-    <svg class="hand hand-right" viewBox="0 0 40 64" preserveAspectRatio="xMinYMax meet" aria-hidden="true" shape-rendering="crispEdges">
+    <svg class="hand hand-right" viewBox="0 0 200 320" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
         <defs>
-            <linearGradient id="skinR" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#b87848"/>
-                <stop offset=".45" stop-color="#f0c898"/>
-                <stop offset="1" stop-color="#d99868"/>
+            <linearGradient id="skinR" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fcd6a8"/>
+                <stop offset="1" stop-color="#e8a872"/>
             </linearGradient>
         </defs>
-        <rect x="4" y="34" width="22" height="32" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="5" y="34" width="20" height="2" fill="#9a5a30" opacity=".55"/>
-        <rect x="2" y="22" width="28" height="14" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="3" y="10" width="9" height="14" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="9" y="11" width="2" height="3" fill="#fff" opacity=".4"/>
-        <rect x="10" y="18" width="6" height="6" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="16.5" y="17" width="6" height="7" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="23" y="18" width="6" height="6" fill="url(#skinR)" stroke="#2a0d00" stroke-width="1"/>
-        <rect x="3" y="32" width="26" height="2" fill="#9a5a30" opacity=".5"/>
-        <rect x="8" y="23" width="20" height="1" fill="#fff" opacity=".25"/>
+        <path d="M 55 320 L 55 200 Q 55 165 100 160 Q 145 165 145 200 L 145 320 Z"
+              fill="url(#skinR)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M 60 178 Q 100 168 140 178" stroke="#a96a3a" stroke-width="3" fill="none" opacity=".7" stroke-linecap="round"/>
+        <path d="M 40 180 Q 25 95 80 65 Q 135 50 170 90 Q 180 135 175 175 Q 170 205 100 205 Q 35 205 40 180 Z"
+              fill="url(#skinR)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M 152 90 Q 198 65 196 30 Q 192 8 168 12 Q 140 22 138 75 Q 142 92 152 90 Z"
+              fill="url(#skinR)" stroke="#3d1a08" stroke-width="5" stroke-linejoin="round"/>
+        <ellipse cx="180" cy="35" rx="7" ry="11" fill="#fde8c8" stroke="#3d1a08" stroke-width="2"/>
+        <path d="M 55 78 Q 65 50 84 56 Q 93 70 88 88 Q 72 92 55 82 Z" fill="url(#skinR)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 82 64 Q 92 38 110 44 Q 119 58 115 78 Q 100 82 82 72 Z" fill="url(#skinR)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 108 56 Q 118 32 136 38 Q 145 52 141 72 Q 126 76 108 66 Z" fill="url(#skinR)" stroke="#3d1a08" stroke-width="4"/>
+        <path d="M 132 62 Q 142 42 158 48 Q 165 60 158 80 Q 144 84 130 74 Z" fill="url(#skinR)" stroke="#3d1a08" stroke-width="4"/>
+        <circle cx="76" cy="80" r="2.5" fill="#a96a3a"/>
+        <circle cx="100" cy="74" r="2.5" fill="#a96a3a"/>
+        <circle cx="125" cy="73" r="2.5" fill="#a96a3a"/>
+        <circle cx="148" cy="78" r="2.5" fill="#a96a3a"/>
+        <ellipse cx="70" cy="135" rx="14" ry="30" fill="#fff" opacity=".22"/>
+        <ellipse cx="90" cy="240" rx="22" ry="18" fill="#fff" opacity=".15"/>
     </svg>
 
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>

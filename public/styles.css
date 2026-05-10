@@ -79,24 +79,26 @@ body {
     z-index: 49;
 }
 
-/* Giant pixel hands holding the device */
+/* Cartoon hands actually gripping the device */
 .hand {
     position: fixed;
     bottom: 0;
-    width: clamp(280px, 38vw, 520px);
-    height: 80vh;
-    z-index: 1;          /* behind the device (z-index: 2) but above bg */
+    width: clamp(220px, 26vw, 340px);
+    height: auto;
+    z-index: 5;          /* above device shell so fingers overlap it */
     pointer-events: none;
-    image-rendering: pixelated;
-    filter: drop-shadow(0 -4px 12px rgba(0,0,0,.7));
+    image-rendering: auto;
+    filter: drop-shadow(0 -10px 18px rgba(0,0,0,.55));
 }
-.hand-left  { left: 0;  transform: translate(15%, 28%); }
-.hand-right { right: 0; transform: translate(-15%, 28%) scaleX(-1); }
+/* Each hand sits just inside the device's outer edge so the fingertips
+   visually wrap onto the front of the shell. */
+.hand-left  { right: calc(50% + 150px); transform: translateY(8%); }
+.hand-right { left:  calc(50% + 150px); transform: translateY(8%) scaleX(-1); }
 
 @media (max-width: 720px) {
-    .hand { width: clamp(180px, 32vw, 320px); transform: translateY(50%); }
-    .hand-left  { transform: translate(-15%, 50%); }
-    .hand-right { transform: translate(15%, 50%); }
+    .hand { width: clamp(160px, 38vw, 240px); }
+    .hand-left  { right: calc(50% + 110px); transform: translateY(20%); }
+    .hand-right { left:  calc(50% + 110px); transform: translateY(20%) scaleX(-1); }
 }
 
 /* === Device shell — translucent-pink handheld === */
