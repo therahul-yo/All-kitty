@@ -2,152 +2,143 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>allkitty</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>allkitty ◍ pocket downloader</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 </head>
-<body class="dark-theme">
-    <div class="app-container">
-        <div id="toastContainer" class="toast-container"></div>
-        
-        <main class="hero">
-            <div class="mascot-container" id="mascotContainer">
-                <svg class="mascot" width="120" height="120" viewBox="0 0 230 230" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path class="cat-body" d="M115 50c18.5 0 35.5 15 45 35 15 30 5 65-20 85-15 12-35 15-55 10-18-4-32-15-40-30-10-20-8-45 5-65 12-18 35-35 65-35z" stroke="#fff" stroke-width="6"/>
-                    <path d="M150 80l20-40-35 25" stroke="#fff" stroke-width="6" stroke-linejoin="round"/>
-                    <path d="M80 80l-20-40 35 25" stroke="#fff" stroke-width="6" stroke-linejoin="round"/>
-                    <path d="M90 110l10 5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M140 110l-10 5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path class="cat-mouth" d="M110 130c2 3 8 3 10 0" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M60 110l-20 -5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M60 125l-20 5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M170 110l20 -5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M170 125l20 5" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M125 160c10 -5 20 0 25 10" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                    <path d="M105 160c-10 -5-20 0-25 10" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
-                </svg>
-                <!-- Fish SVGs for animation -->
-                <svg class="fish f1" width="30" height="30" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 50c0-20 30-30 50-10 10 10 10 30 0 40-20 20-50 10-50-10z" stroke="#ff7800" stroke-width="8"/>
-                    <path d="M70 50l20-15v30l-20-15z" stroke="#ff7800" stroke-width="8" stroke-linejoin="round"/>
-                </svg>
-                <svg class="fish f2" width="25" height="25" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 50c0-20 30-30 50-10 10 10 10 30 0 40-20 20-50 10-50-10z" stroke="#ffaa00" stroke-width="8"/>
-                    <path d="M70 50l20-15v30l-20-15z" stroke="#ffaa00" stroke-width="8" stroke-linejoin="round"/>
-                </svg>
-                <svg class="fish f3" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M20 50c0-20 30-30 50-10 10 10 10 30 0 40-20 20-50 10-50-10z" stroke="#ff7800" stroke-width="8"/>
-                    <path d="M70 50l20-15v30l-20-15z" stroke="#ff7800" stroke-width="8" stroke-linejoin="round"/>
-                </svg>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <main class="device" role="main">
+        <div class="device-shell">
+            <div class="device-top">
+                <span class="brand">allkitty<span class="brand-dot">.</span>exe</span>
+                <span class="led" data-state="idle" id="powerLed" aria-hidden="true"></span>
             </div>
 
-            <div class="input-container">
-                <div class="input-wrapper">
-                    <input type="text" id="videoUrl" placeholder="paste link here" spellcheck="false" autocomplete="off" aria-label="Media URL">
-                    <button id="saveBtn" aria-label="Download media">download</button>
-                    <button id="cancelBtn" class="cancel-btn" style="display: none;" aria-label="Cancel download">cancel</button>
-                </div>
-                <div id="statusMessage" class="status-msg" aria-live="polite"></div>
-                
-                <!-- Queue Progress Bar -->
-                <div id="queueProgressContainer" class="queue-progress-container" style="display: none;">
-                    <div class="progress-bar-bg">
-                        <div id="queueProgressBar" class="progress-bar-fill"></div>
+            <section class="screen" id="screen" data-state="idle">
+                <div class="screen-bezel">
+                    <div class="screen-glass">
+                        <div class="screen-stage">
+                            <div class="cat-stage">
+                                <div class="cat-canvas" id="catCanvas" aria-label="pixel cat mascot" role="img"></div>
+                                <div class="poop-stage" id="poopStage" aria-hidden="true"></div>
+                                <div class="thought" id="thought">
+                                    <span class="thought-bubble"></span>
+                                    <span class="thought-bubble"></span>
+                                    <div class="thought-box" id="thoughtBox">paste a link, hooman</div>
+                                </div>
+                                <div class="floor"></div>
+                            </div>
+                            <div class="lcd-readout">
+                                <div class="lcd-row">
+                                    <span id="lcdState">▸ idle</span>
+                                    <span id="lcdHunger">♥♥♥♥</span>
+                                </div>
+                                <div class="lcd-bar"><div id="lcdBarFill" class="lcd-bar-fill"></div></div>
+                            </div>
+                        </div>
                     </div>
-                    <span id="queueProgressText" class="progress-text">waiting in queue...</span>
                 </div>
-            </div>
-        </main>
+            </section>
 
-        <footer class="controls">
-            <button id="historyBtn" class="icon-btn" title="history" aria-label="Open history" aria-expanded="false" aria-controls="historyPanel">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="9"></circle></svg>
-            </button>
-            <button id="settingsBtn" class="icon-btn" title="settings" aria-label="Open settings" aria-expanded="false" aria-controls="settingsPanel">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            </button>
-            <button id="infoBtn" class="icon-btn" title="info" aria-label="Open information" aria-expanded="false" aria-controls="infoPanel">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            </button>
-        </footer>
-
-        <div id="historyPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Download History">
-            <div class="panel-container" tabindex="-1">
-                <div class="panel-header">
-                    <h2>history</h2>
-                    <button id="closeHistory" class="close-btn" aria-label="Close history">&times;</button>
+            <div class="device-controls">
+                <div class="input-pad">
+                    <input type="text" id="videoUrl" class="pixel-input" placeholder="▌ paste link…" spellcheck="false" autocomplete="off" aria-label="Media URL">
+                    <button id="saveBtn" class="dpad-btn primary" aria-label="Download media"><span>FEED</span></button>
+                    <button id="cancelBtn" class="dpad-btn cancel-btn" style="display:none" aria-label="Cancel download"><span>STOP</span></button>
                 </div>
-                <div class="panel-content">
-                    <div id="historyList" class="history-list">
-                        <p class="small-text">loading history...</p>
-                    </div>
+                <div class="bottom-pad">
+                    <button id="historyBtn" class="ctrl-pill" aria-label="Open history" aria-expanded="false" aria-controls="historyPanel">A · log</button>
+                    <button id="settingsBtn" class="ctrl-pill" aria-label="Open settings" aria-expanded="false" aria-controls="settingsPanel">B · cfg</button>
+                    <button id="infoBtn" class="ctrl-pill" aria-label="Open information" aria-expanded="false" aria-controls="infoPanel">? · info</button>
                 </div>
             </div>
         </div>
+    </main>
 
-        <div id="infoPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Information Panel">
-            <div class="panel-container" tabindex="-1">
-                <div class="panel-header">
-                    <button id="closeInfo" class="close-btn" aria-label="Close information">&times;</button>
-                </div>
-                <div class="panel-content">
-                    <p><strong>allkitty</strong> is a "no-nonsense" media downloader.</p>
-                    <ul>
-                        <li>Supports YouTube, TikTok, Twitter, and more.</li>
-                        <li>No ads, no trackers, no bullshit.</li>
-                        <li>High-quality video and audio extraction.</li>
-                    </ul>
-                    <p class="small-text">built with node.js & vanilla js</p>
-                </div>
+    <div id="historyPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Download History">
+        <div class="panel-container" tabindex="-1">
+            <div class="panel-header">
+                <h2>▣ litter box</h2>
+                <button id="closeHistory" class="close-btn" aria-label="Close history">×</button>
             </div>
-        </div>
-
-        <div id="settingsPanel" class="side-panel bottom-up" role="dialog" aria-modal="true" aria-label="Settings Panel">
-            <div class="panel-container" tabindex="-1">
-                <div class="panel-header">
-                    <h2>settings</h2>
-                    <button id="closeSettings" class="close-btn" aria-label="Close settings">&times;</button>
-                </div>
-                <div class="panel-content">
-                    <div class="setting-group">
-                        <label>download mode</label>
-                        <div class="segmented-control" data-state="downloadMode">
-                            <button class="segment active" data-value="video">video</button>
-                            <button class="segment" data-value="audio">audio</button>
-                        </div>
-                    </div>
-                    <div class="setting-group">
-                        <label>video quality</label>
-                        <div class="segmented-control" data-state="quality">
-                            <button class="segment active" data-value="1080">1080p</button>
-                            <button class="segment" data-value="1440">1440p</button>
-                            <button class="segment" data-value="2160">4k</button>
-                            <button class="segment" data-value="max">max</button>
-                        </div>
-                    </div>
-                    <div class="setting-group">
-                        <label>video codec</label>
-                        <div class="segmented-control" data-state="codec">
-                            <button class="segment active" data-value="h264">h264</button>
-                            <button class="segment" data-value="av1">av1</button>
-                            <button class="segment" data-value="vp9">vp9</button>
-                        </div>
-                    </div>
-                    <div class="setting-group toggle-group">
-                        <label>mute video</label>
-                        <label class="switch">
-                            <input type="checkbox" id="muteVideo" aria-label="Mute video">
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
+            <div class="panel-content">
+                <div id="historyList" class="history-list">
+                    <p class="small-text">scratching post empty…</p>
                 </div>
             </div>
         </div>
     </div>
+
+    <div id="infoPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Information Panel">
+        <div class="panel-container" tabindex="-1">
+            <div class="panel-header">
+                <h2>? readme.txt</h2>
+                <button id="closeInfo" class="close-btn" aria-label="Close information">×</button>
+            </div>
+            <div class="panel-content">
+                <p><strong>allkitty</strong> is a pocket media downloader.</p>
+                <ul>
+                    <li>feed it a link, it poops a file.</li>
+                    <li>youtube · tiktok · twitter · more.</li>
+                    <li>no ads · no tracking · just pixels.</li>
+                </ul>
+                <p class="small-text">v2 · pocket edition · pixels by hand</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsPanel" class="side-panel bottom-up" role="dialog" aria-modal="true" aria-label="Settings Panel">
+        <div class="panel-container" tabindex="-1">
+            <div class="panel-header">
+                <h2>⚙ tuning</h2>
+                <button id="closeSettings" class="close-btn" aria-label="Close settings">×</button>
+            </div>
+            <div class="panel-content">
+                <div class="setting-group">
+                    <label>diet</label>
+                    <div class="segmented-control" data-state="downloadMode">
+                        <button class="segment active" data-value="video">video</button>
+                        <button class="segment" data-value="audio">audio</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>resolution</label>
+                    <div class="segmented-control" data-state="quality">
+                        <button class="segment active" data-value="1080">1080p</button>
+                        <button class="segment" data-value="1440">1440p</button>
+                        <button class="segment" data-value="2160">4k</button>
+                        <button class="segment" data-value="max">max</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>codec</label>
+                    <div class="segmented-control" data-state="codec">
+                        <button class="segment active" data-value="h264">h264</button>
+                        <button class="segment" data-value="av1">av1</button>
+                        <button class="segment" data-value="vp9">vp9</button>
+                    </div>
+                </div>
+                <div class="setting-group toggle-group">
+                    <label>silent (mute)</label>
+                    <label class="switch">
+                        <input type="checkbox" id="muteVideo" aria-label="Mute video">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
