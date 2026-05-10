@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         id: string; url: string; format: string; filename: string;
         status: string; created_at: string; file_size: number;
     }
-    type CatMood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad';
+    type CatMood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad' | 'sleep' | 'pet' | 'hungry';
 
     const escapeHtml = (s: string): string => {
         const d = document.createElement('div');
@@ -216,6 +216,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return r;
     });
 
+    // Sleeping: closed eyes, slight curl
+    const sleepFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
+        return r;
+    });
+
+    // Pet/love: ^^ squint eyes + tongue blep
+    const petFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BBBLLBLLLLLLLLLBLLBBBB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
+        if (i === 9) return '.BLLLLLLLNCZZCNLLLLLLLB.';
+        return r;
+    });
+
+    // Hungry: sad pleading eyes + tongue droop
+    const hungryFrame = idleFrame.map((r, i) => {
+        if (i === 7) return '.BLLEEBLLLLLLLLLBEELLLB.';
+        if (i === 8) return '.BLLEWBLLLLPPLLLLBWELLB.';
+        if (i === 9) return '.BLLLLLLLLZZZZLLLLLLLLB.';
+        if (i === 10) return '.BLLLLNNNNZZZZNNNNLLLLB.';
+        return r;
+    });
+
     // Poop sprite — 12 × 10
     const poopSprite = [
         '....BBBB....',
@@ -255,12 +279,111 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Cat state machine ---
     let currentMood: CatMood = 'idle';
     let munchToggle = false;
+    let lastInteraction = Date.now();
+    let hungerLevel = 4;
+    let idleBehaviorId: any = null;
+    let zzzId: any = null;
+
+    // --- Pet thought pools ---
+    const idleThoughts = [
+        'paste a link, hooman',
+        'mrow?',
+        'i see you...',
+        'nyaaa',
+        '*licks paw*',
+        'whiskers twitch',
+        'blep',
+        '*tail flick*',
+        '*purrs softly*',
+        'staring intensifies',
+        'bring me a video',
+        '*ear flick*',
+        'nap?',
+        '*kneads air*',
+        'feed me a link!',
+        'attention pls',
+        'mrrp',
+        'hooman... ?',
+        '*chirps*',
+        'beep meow',
+        '*head tilt*',
+        'i\'m a good cat',
+    ];
+    const sniffThoughts = [
+        'sniff sniff...',
+        'mmm a link',
+        'smells linkable',
+        'is it tasty?',
+        '*twitch*',
+        'lemme inspect this',
+    ];
+    const hungryThoughts = [
+        'feed me!!',
+        'starvinggg',
+        '*meows angrily*',
+        'i need a link to eat',
+        'hooman are you ok',
+        '*paws at screen*',
+        'food food food',
+    ];
+    const happyThoughts = [
+        'mwah!',
+        '*purrs loudly*',
+        'good hooman',
+        'love this',
+        '<3',
+        '*wiggles*',
+    ];
+    const petThoughts = [
+        '*purr*',
+        'mreoow~',
+        'more please',
+        'aaa <3',
+        '*content*',
+        'best hooman',
+        '*nuzzles*',
+    ];
+    const sleepThoughts = [
+        'zzz...',
+        '*dreaming*',
+        'mrrr...',
+        '*twitches paw*',
+    ];
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+    const spawnHearts = (n: number) => {
+        for (let i = 0; i < n; i++) {
+            setTimeout(() => {
+                const heart = document.createElement('div');
+                heart.className = 'heart';
+                heart.textContent = Math.random() < 0.5 ? '♡' : '♥';
+                const offset = -22 + Math.random() * 44;
+                heart.style.left = `calc(50% + ${offset}px)`;
+                poopStage.appendChild(heart);
+                setTimeout(() => heart.remove(), 1400);
+            }, i * 130);
+        }
+    };
+
+    const startZzz = () => {
+        if (zzzId) return;
+        zzzId = setInterval(() => {
+            const z = document.createElement('div');
+            z.className = 'zzz';
+            z.textContent = ['z', 'Z', 'zZ'][Math.floor(Math.random() * 3)];
+            z.style.left = `${52 + Math.random() * 8}%`;
+            poopStage.appendChild(z);
+            setTimeout(() => z.remove(), 2400);
+        }, 1300);
+    };
+    const stopZzz = () => { if (zzzId) { clearInterval(zzzId); zzzId = null; } };
 
     const setMood = (mood: CatMood) => {
         currentMood = mood;
         screen.dataset.state = mood;
         if (frameTickId) { clearInterval(frameTickId); frameTickId = null; }
         if (blinkIntervalId) { clearInterval(blinkIntervalId); blinkIntervalId = null; }
+        if (mood !== 'sleep') stopZzz();
 
         switch (mood) {
             case 'idle':
@@ -303,6 +426,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 lcdState.textContent = '> sad';
                 powerLed.dataset.state = 'alert';
                 break;
+            case 'sleep':
+                renderSprite(catCanvas, sleepFrame, PAL);
+                lcdState.textContent = '> zzz...';
+                powerLed.dataset.state = 'idle';
+                startZzz();
+                break;
+            case 'pet':
+                renderSprite(catCanvas, petFrame, PAL);
+                lcdState.textContent = '> purr~';
+                powerLed.dataset.state = 'happy';
+                break;
+            case 'hungry':
+                renderSprite(catCanvas, hungryFrame, PAL);
+                lcdState.textContent = '> hungry';
+                powerLed.dataset.state = 'alert';
+                break;
         }
     };
 
@@ -318,7 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const setHunger = (hearts: number) => {
-        const filled = '@'.repeat(Math.max(0, Math.min(4, hearts)));
+        const clamped = Math.max(0, Math.min(4, hearts));
+        hungerLevel = clamped;
+        const filled = '@'.repeat(clamped);
         const empty = '.'.repeat(4 - filled.length);
         lcdHunger.textContent = filled + empty;
     };
@@ -595,8 +736,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'FEED';
         cancelBtn.style.display = 'none';
         setProgressBar(0);
-        setHunger(4);
-        setMood(videoUrlInput.value.trim() ? 'sniff' : 'idle');
+        const next: CatMood = videoUrlInput.value.trim()
+            ? 'sniff'
+            : (hungerLevel <= 1 ? 'hungry' : 'idle');
+        setMood(next);
         if (!videoUrlInput.value.trim()) hideThought();
     };
 
@@ -658,13 +801,17 @@ document.addEventListener('DOMContentLoaded', () => {
     videoUrlInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleDownload(); });
 
     videoUrlInput.addEventListener('input', () => {
-        if (currentMood === 'idle' || currentMood === 'sniff' || currentMood === 'happy' || currentMood === 'sad') {
+        lastInteraction = Date.now();
+        const restable = currentMood === 'idle' || currentMood === 'sniff' || currentMood === 'happy' ||
+                         currentMood === 'sad' || currentMood === 'sleep' || currentMood === 'pet' ||
+                         currentMood === 'hungry';
+        if (restable) {
             if (videoUrlInput.value.trim()) {
                 setMood('sniff');
-                showThought('mmm... smells linkable');
+                showThought(pick(sniffThoughts));
             } else {
                 hideThought();
-                setMood('idle');
+                setMood(hungerLevel <= 1 ? 'hungry' : 'idle');
             }
         }
     });
@@ -684,15 +831,76 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     catCanvas.addEventListener('click', () => {
-        if (currentMood === 'idle' || currentMood === 'sniff') {
-            sfx.purr();
-            showThought('purrrr', 1500);
-            catCanvas.animate(
-                [{ transform: 'scale(1)' }, { transform: 'scale(1.08) rotate(-2deg)' }, { transform: 'scale(1)' }],
-                { duration: 320, iterations: 1, easing: 'cubic-bezier(.7,-0.4,.3,1.4)' }
-            );
+        lastInteraction = Date.now();
+        if (currentMood === 'munch' || currentMood === 'squat') return;
+        sfx.purr();
+        spawnHearts(3);
+        const prev = videoUrlInput.value.trim();
+        const restMood: CatMood = prev ? 'sniff' : (hungerLevel <= 1 ? 'hungry' : 'idle');
+        setMood('pet');
+        showThought(pick(petThoughts), 1500);
+        setTimeout(() => {
+            if (currentMood === 'pet') setMood(restMood);
+        }, 1400);
+    });
+
+    // Pet on hover too — small wiggle without state change
+    catCanvas.addEventListener('mouseenter', () => {
+        if (currentMood === 'idle' || currentMood === 'sleep') {
+            lastInteraction = Date.now();
+            if (currentMood === 'sleep') {
+                setMood('idle');
+                showThought('mrrr...?', 1400);
+            }
         }
     });
+
+    // --- Idle behavior + hunger decay ---
+    idleBehaviorId = setInterval(() => {
+        const idleSec = (Date.now() - lastInteraction) / 1000;
+        // Long idle → sleep
+        if (idleSec > 50 && currentMood === 'idle') {
+            setMood('sleep');
+            showThought(pick(sleepThoughts), 2400);
+            return;
+        }
+        // Random idle nudges
+        if (currentMood === 'idle' && Math.random() < 0.45) {
+            const r = Math.random();
+            if (r < 0.55) {
+                showThought(pick(idleThoughts), 2400);
+            } else if (r < 0.85) {
+                setMood('sniff');
+                setTimeout(() => { if (currentMood === 'sniff' && !videoUrlInput.value.trim()) setMood('idle'); }, 900);
+            } else {
+                renderSprite(catCanvas, blinkFrame, PAL);
+                setTimeout(() => { if (currentMood === 'idle') renderSprite(catCanvas, idleFrame, PAL); }, 200);
+            }
+        } else if (currentMood === 'sleep' && Math.random() < 0.5) {
+            showThought(pick(sleepThoughts), 2200);
+        } else if (currentMood === 'hungry' && Math.random() < 0.5) {
+            showThought(pick(hungryThoughts), 2400);
+        } else if (currentMood === 'sniff' && Math.random() < 0.35) {
+            showThought(pick(sniffThoughts), 1800);
+        }
+    }, 7000);
+
+    // Hunger ticks down slowly
+    setInterval(() => {
+        if (currentMood === 'munch' || currentMood === 'squat' || currentMood === 'happy') return;
+        if (hungerLevel > 0) {
+            hungerLevel -= 1;
+            setHunger(hungerLevel);
+        }
+        if (hungerLevel <= 1 && currentMood !== 'sleep' && currentMood !== 'hungry' && currentMood !== 'pet') {
+            setMood('hungry');
+            showThought(pick(hungryThoughts), 2800);
+        }
+    }, 35000);
+
+    // Any user input on the page = poke the cat
+    document.addEventListener('keydown', () => { lastInteraction = Date.now(); }, { passive: true });
+    document.addEventListener('mousemove', () => { lastInteraction = Date.now(); }, { passive: true });
 
     // Initial sfx toggle state from localStorage
     sfxToggleCheckbox.checked = !sfxMuted;
