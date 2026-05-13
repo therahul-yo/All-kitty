@@ -747,10 +747,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleDownload = async () => {
         const url = videoUrlInput.value.trim();
         if (!url) {
-            showToast('paste a link first', 'error');
             setMood('sad');
-            showThought('feed me a link', 1800);
-            setTimeout(() => setMood('idle'), 800);
+            showThought('meow... paste a link first', 2200);
+            sfx.error();
+            setTimeout(() => setMood(hungerLevel <= 1 ? 'hungry' : 'idle'), 900);
             return;
         }
 
