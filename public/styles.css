@@ -82,7 +82,88 @@ body {
 
 /* === Device shell — polished toy hardware === */
 
-.device { width: min(420px, 100%); position: relative; }
+.device {
+    width: min(420px, 100%);
+    position: relative;
+    z-index: 2;
+}
+
+/* Smooth cartoon hands holding the pocket device from the page bottom */
+.cartoon-hand {
+    position: fixed;
+    bottom: -22px;
+    width: clamp(138px, 13vw, 184px);
+    height: min(58vh, 520px);
+    pointer-events: none;
+    overflow: visible;
+    z-index: 1;
+    filter:
+      drop-shadow(0 10px 0 rgba(0,0,0,.45))
+      drop-shadow(0 24px 26px rgba(0,0,0,.72));
+    transform-origin: 50% 100%;
+}
+.cartoon-hand-left {
+    left: calc(50% - 382px);
+    animation: hand-hold-left 5.2s ease-in-out infinite;
+}
+.cartoon-hand-right {
+    right: calc(50% - 382px);
+    transform: scaleX(-1);
+    animation: hand-hold-right 5.2s ease-in-out infinite;
+}
+.cartoon-hand .hand-skin,
+.cartoon-hand .hand-arm {
+    transform-box: fill-box;
+    transform-origin: 50% 70%;
+}
+.cartoon-hand .hand-skin {
+    animation: hand-squeeze 3.8s ease-in-out infinite;
+}
+.cartoon-hand .sleeve {
+    fill: #24456b;
+    stroke: #07040a;
+    stroke-width: 7;
+    stroke-linejoin: round;
+}
+.cartoon-hand .sleeve-cuff {
+    fill: #f3f0dc;
+    stroke: #07040a;
+    stroke-width: 7;
+    stroke-linejoin: round;
+}
+.cartoon-hand .palm,
+.cartoon-hand .finger,
+.cartoon-hand .thumb {
+    fill: #f0b88f;
+    stroke: #07040a;
+    stroke-width: 7;
+    stroke-linejoin: round;
+}
+.cartoon-hand .finger-1 { fill: #efb184; }
+.cartoon-hand .finger-2 { fill: #f5c29a; }
+.cartoon-hand .finger-3 { fill: #f2ba90; }
+.cartoon-hand .finger-4 { fill: #edae82; }
+.cartoon-hand .thumb { fill: #eaa97c; }
+.cartoon-hand .palm-line,
+.cartoon-hand .knuckle {
+    fill: none;
+    stroke: rgba(93,45,30,.56);
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+
+@keyframes hand-hold-left {
+    0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+    50%      { transform: translate3d(3px, -5px, 0) rotate(-.6deg); }
+}
+@keyframes hand-hold-right {
+    0%, 100% { transform: scaleX(-1) translate3d(0, 0, 0) rotate(-2deg); }
+    50%      { transform: scaleX(-1) translate3d(3px, -5px, 0) rotate(-.6deg); }
+}
+@keyframes hand-squeeze {
+    0%, 100% { transform: translateY(0) scale(1); }
+    45%      { transform: translateY(-2px) scale(.985, 1.015); }
+}
 
 /* Tamagotchi-style keyring handle on top of the device */
 /* Outer chrome ring */
@@ -937,6 +1018,13 @@ body {
 @media (max-width: 480px) {
     body { padding: 72px 10px 24px; }
     .device { width: 100%; }
+    .cartoon-hand {
+        width: clamp(98px, 29vw, 128px);
+        height: min(46vh, 390px);
+        bottom: -28px;
+    }
+    .cartoon-hand-left { left: calc(50% - 236px); }
+    .cartoon-hand-right { right: calc(50% - 236px); }
     .device::before { top: -54px; width: 24px; height: 24px; border-width: 10px; }
     .device::after { top: -21px; width: 40px; height: 30px; }
     .device-shell { padding: 16px 14px 24px; border-radius: 24px 24px 30px 30px; }
