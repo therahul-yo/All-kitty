@@ -88,81 +88,67 @@ body {
     z-index: 2;
 }
 
-/* Smooth cartoon hands holding the pocket device from the page bottom */
-.cartoon-hand {
-    position: fixed;
-    bottom: -22px;
-    width: clamp(138px, 13vw, 184px);
-    height: min(58vh, 520px);
+/* Smooth reference-style hands actually holding the top keyring */
+.handle-hand {
+    position: absolute;
+    top: -226px;
+    width: 150px;
+    height: 250px;
     pointer-events: none;
     overflow: visible;
-    z-index: 1;
-    filter:
-      drop-shadow(0 10px 0 rgba(0,0,0,.45))
-      drop-shadow(0 24px 26px rgba(0,0,0,.72));
+    z-index: 4;
     transform-origin: 50% 100%;
+    filter:
+      drop-shadow(0 5px 0 rgba(0,0,0,.42))
+      drop-shadow(0 16px 16px rgba(0,0,0,.58));
 }
-.cartoon-hand-left {
-    left: calc(50% - 382px);
-    animation: hand-hold-left 5.2s ease-in-out infinite;
+.handle-hand-left {
+    left: calc(50% - 137px);
+    transform: rotate(-12deg);
+    animation: handle-hand-left 4.8s ease-in-out infinite;
 }
-.cartoon-hand-right {
-    right: calc(50% - 382px);
-    transform: scaleX(-1);
-    animation: hand-hold-right 5.2s ease-in-out infinite;
+.handle-hand-right {
+    left: calc(50% - 13px);
+    transform: scaleX(-1) rotate(-12deg);
+    animation: handle-hand-right 4.8s ease-in-out infinite;
 }
-.cartoon-hand .hand-skin,
-.cartoon-hand .hand-arm {
-    transform-box: fill-box;
-    transform-origin: 50% 70%;
-}
-.cartoon-hand .hand-skin {
-    animation: hand-squeeze 3.8s ease-in-out infinite;
-}
-.cartoon-hand .sleeve {
-    fill: #24456b;
-    stroke: #07040a;
-    stroke-width: 7;
+.handle-hand .handle-arm {
+    fill: #ffe4c8;
+    stroke: #5a120f;
+    stroke-width: 5.5;
     stroke-linejoin: round;
 }
-.cartoon-hand .sleeve-cuff {
-    fill: #f3f0dc;
-    stroke: #07040a;
-    stroke-width: 7;
-    stroke-linejoin: round;
-}
-.cartoon-hand .palm,
-.cartoon-hand .finger,
-.cartoon-hand .thumb {
-    fill: #f0b88f;
-    stroke: #07040a;
-    stroke-width: 7;
-    stroke-linejoin: round;
-}
-.cartoon-hand .finger-1 { fill: #efb184; }
-.cartoon-hand .finger-2 { fill: #f5c29a; }
-.cartoon-hand .finger-3 { fill: #f2ba90; }
-.cartoon-hand .finger-4 { fill: #edae82; }
-.cartoon-hand .thumb { fill: #eaa97c; }
-.cartoon-hand .palm-line,
-.cartoon-hand .knuckle {
-    fill: none;
-    stroke: rgba(93,45,30,.56);
-    stroke-width: 5;
+.handle-hand .handle-wrist,
+.handle-hand .handle-palm,
+.handle-hand .handle-thumb,
+.handle-hand .handle-finger {
+    fill: #ffe1c1;
+    stroke: #5a120f;
+    stroke-width: 5.5;
     stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.handle-hand .handle-wrist { fill: #ffd7b2; }
+.handle-hand .handle-thumb { fill: #ffd3aa; }
+.handle-hand .finger-a { fill: #ffe6ca; }
+.handle-hand .finger-b { fill: #ffddb9; }
+.handle-hand .finger-c { fill: #ffd3aa; }
+.handle-hand .handle-line,
+.handle-hand .handle-nail {
+    fill: none;
+    stroke: #9a4a36;
+    stroke-width: 4;
+    stroke-linecap: round;
+    opacity: .62;
 }
 
-@keyframes hand-hold-left {
-    0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
-    50%      { transform: translate3d(3px, -5px, 0) rotate(-.6deg); }
+@keyframes handle-hand-left {
+    0%, 100% { transform: translate3d(0, 0, 0) rotate(-12deg); }
+    50%      { transform: translate3d(2px, 3px, 0) rotate(-9deg); }
 }
-@keyframes hand-hold-right {
-    0%, 100% { transform: scaleX(-1) translate3d(0, 0, 0) rotate(-2deg); }
-    50%      { transform: scaleX(-1) translate3d(3px, -5px, 0) rotate(-.6deg); }
-}
-@keyframes hand-squeeze {
-    0%, 100% { transform: translateY(0) scale(1); }
-    45%      { transform: translateY(-2px) scale(.985, 1.015); }
+@keyframes handle-hand-right {
+    0%, 100% { transform: scaleX(-1) translate3d(0, 0, 0) rotate(-12deg); }
+    50%      { transform: scaleX(-1) translate3d(2px, 3px, 0) rotate(-9deg); }
 }
 
 /* Tamagotchi-style keyring handle on top of the device */
@@ -1018,13 +1004,13 @@ body {
 @media (max-width: 480px) {
     body { padding: 72px 10px 24px; }
     .device { width: 100%; }
-    .cartoon-hand {
-        width: clamp(98px, 29vw, 128px);
-        height: min(46vh, 390px);
-        bottom: -28px;
+    .handle-hand {
+        top: -184px;
+        width: 118px;
+        height: 198px;
     }
-    .cartoon-hand-left { left: calc(50% - 236px); }
-    .cartoon-hand-right { right: calc(50% - 236px); }
+    .handle-hand-left { left: calc(50% - 108px); }
+    .handle-hand-right { left: calc(50% - 10px); }
     .device::before { top: -54px; width: 24px; height: 24px; border-width: 10px; }
     .device::after { top: -21px; width: 40px; height: 30px; }
     .device-shell { padding: 16px 14px 24px; border-radius: 24px 24px 30px 30px; }
