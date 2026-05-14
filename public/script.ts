@@ -150,99 +150,94 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 24 × 20 sprite. Each row is exactly 24 chars.
-    // Chubby 8-bit orange cat: thick black outline, pink ears, white muzzle/belly, curled tail.
+    // Tabby markings: forehead M, back stripes, cream belly (N), white muzzle.
     const idleFrame = [
         '........................',
-        '.......BB......BB.......',
-        '......BPPB....BPPB......',
-        '......BPLB....BPLB......',
-        '.....BLLLBBBBBBLLLB.....',
-        '....BLLLLLLLLLLLLLLB....',
-        '...BLLLLMMLLMMMLLLLB....',
-        '...BLLLEEBLLLBEELLLB....',
-        '...BLLLLNNPPLNNLLLLB....',
-        '..BLLLLNNNNNNNNLLLLLB...',
-        '..BLLLLNNNYYNNNLLLLLB...',
-        '.BLLLLLLLNNNNLLLLLLLLB..',
-        '.BLLLLLLLLLLLLLLLLLLLLB.',
-        '.BLLMMLLLLLLLLLLLLMMBL..',
-        '..BLLMMLLLLLLLLLLMMBL...',
-        '...BLLLLLNNNNNNLLLLB....',
-        '....BLLNNBBBBNNLLB.BB...',
-        '.....BBNN....NNBB.BLB...',
-        '......BBBB..BBBB...BB...',
+        '....BB............BB....',
+        '...BLLB..........BLLB...',
+        '..BLLLBBBBBBBBBBBBLLLB..',
+        '..BLLMLLLLLLLLLLLLMLLB..',
+        '.BLLMMLLLLLLLLLLLLMMLLB.',
+        '.BLLLLLLMMLLLLMMLLLLLLB.',
+        '.BLLWEBLLLLLLLLLBEWLLLB.',
+        '.BLLEEBLLLLPPLLLLBEELLB.',
+        '.BLLLLLLNCPPCNLLLLLLLLB.',
+        '.BLLLLNNNNNNNNNNNNLLLLB.',
+        '.BLLLMLLLNNNNNNLLLMLLLB.',
+        '..BLMMLLNNNNNNNNNNLMMLB.',
+        '...BBLLNNNNNNNNNNNNLBB..',
+        '.....BNNNNNNNNNNNNB.....',
+        '.....BLLBNNNNNNBLLB..BB.',
+        '.....BLLBNNNNNNBLLBBBLB.',
+        '.....BLLBNNNNNNBLLBLLB..',
+        '.....BBBBBBBBBBBBBBBB...',
         '........................',
     ];
 
     const blinkFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLTTBLLLTTLLLLB....';
-        if (i === 8) return '...BLLLLNNPPLNNLLLLB....';
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
         return r;
     });
 
     const sniffFrame = idleFrame.map((r, i) => {
-        if (i === 8) return '...BLLLLNNZZLNNLLLLB....';
-        if (i === 9) return '..BLLLLNNNNZZNNLLLLLB...';
+        if (i === 9) return '.BLLLLLLLCLZZLCLLLLLLLB.';
         return r;
     });
 
     const munchOpen = idleFrame.map((r, i) => {
-        if (i === 8)  return '...BLLLLNNPPLNNLLLLB....';
-        if (i === 9)  return '..BLLLLNNYYYYNNLLLLLB...';
-        if (i === 10) return '..BLLLLNNYZZYNNLLLLLB...';
-        if (i === 11) return '.BLLLLLLNYYYYNLLLLLLLLB.';
+        if (i === 9)  return '.BLLLLLLBBYYYYBBLLLLLLB.';
+        if (i === 10) return '.BLLLLLBYZZZZZZYBLLLLLB.';
+        if (i === 11) return '.BLLLLLBYYZZZZYYBLLLLLB.';
+        if (i === 12) return '..BLLLLBBYYYYYYBBLLLLB..';
         return r;
     });
     const munchClosed = idleFrame.map((r, i) => {
-        if (i === 9)  return '..BLLLLNNNNPPNNLLLLLB...';
-        if (i === 10) return '..BLLLLNNNYYNNLLLLLLB...';
+        if (i === 9)  return '.BLLLLLLLCLPPLCLLLLLLLB.';
+        if (i === 10) return '.BLLLLLLLLZZZZLLLLLLLLB.';
         return r;
     });
 
     const squatFrame = idleFrame.map((r, i) => {
-        if (i === 12) return '.BLLLLLLNNNNNNLLLLLLLLB.';
-        if (i === 13) return '.BLLMMLLLLLLLLLLLLMMBL..';
-        if (i === 16) return '....BLLNNBBBBNNLLB.BB...';
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
         return r;
     });
 
     const happyFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLTTBLLLTTLLLLB....';
-        if (i === 8) return '...BLLLLNNZZLNNLLLLB....';
-        if (i === 10) return '..BLLLLNNYYYYNNLLLLLB...';
+        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
+        if (i === 8) return '.BLBBLBLLLLPPLLLLBLLBBB.';
         return r;
     });
 
     const sadFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLEEBLLLBEELLLB....';
-        if (i === 8) return '...BLLLLNNCCLNNLLLLB....';
-        if (i === 10) return '..BLLLLNNNZZNNLLLLLLB...';
+        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
+        if (i === 8) return '.BLLEEBLLLLPPLLLLBEELLB.';
+        if (i === 9) return '.BLLEEBLLLLCCLLLLBEELLB.';
         return r;
     });
 
     // Sleeping: closed eyes, slight curl
     const sleepFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLTTBLLLTTLLLLB....';
-        if (i === 8) return '...BLLLLNNPPLNNLLLLB....';
-        if (i === 13) return '.BLLMLLLLLNNNNLLLLLMLB..';
-        if (i === 14) return '..BLLMMLLLLLLLLLLMMBL...';
+        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
         return r;
     });
 
     // Pet/love: ^^ squint eyes + tongue blep
     const petFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLTTBLLLTTLLLLB....';
-        if (i === 8) return '...BLLLLNNPPLNNLLLLB....';
-        if (i === 9) return '..BLLLLNNNCZZCNNLLLLB...';
+        if (i === 7) return '.BBBLLBLLLLLLLLLBLLBBBB.';
+        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
+        if (i === 9) return '.BLLLLLLLNCZZCNLLLLLLLB.';
         return r;
     });
 
     // Hungry: sad pleading eyes + tongue droop
     const hungryFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '...BLLLEEBLLLBEELLLB....';
-        if (i === 8) return '...BLLLLNNPPLNNLLLLB....';
-        if (i === 9) return '..BLLLLNNNZZZNNLLLLLB...';
-        if (i === 10) return '..BLLLLNNNZZNNLLLLLLB...';
+        if (i === 7) return '.BLLEEBLLLLLLLLLBEELLLB.';
+        if (i === 8) return '.BLLEWBLLLLPPLLLLBWELLB.';
+        if (i === 9) return '.BLLLLLLLLZZZZLLLLLLLLB.';
+        if (i === 10) return '.BLLLLNNNNZZZZNNNNLLLLB.';
         return r;
     });
 
