@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>allkitty ◍ pocket downloader</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css?v=console-lcd">
+    <link rel="stylesheet" href="styles.css?v=catos-ui">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -35,6 +35,11 @@
                 <div class="screen-bezel">
                     <div class="screen-glass">
                         <div class="screen-stage" id="screenStage">
+                            <div class="lcd-status" aria-hidden="true">
+                                <span class="lcd-os">CATOS v2</span>
+                                <span id="platformStatus" class="lcd-platform">no link</span>
+                                <span id="lcdBattery" class="lcd-battery">♥♥♥♥</span>
+                            </div>
                             <div class="cat-stage">
                                 <div class="cat-canvas" id="catCanvas" aria-label="pixel cat mascot" role="img"></div>
                                 <div class="poop-stage" id="poopStage" aria-hidden="true"></div>
@@ -64,6 +69,7 @@
                 </div>
                 <div class="input-pad">
                     <input type="text" id="videoUrl" class="pixel-input" placeholder="▌ paste link…" spellcheck="false" autocomplete="off" aria-label="Media URL">
+                    <span id="platformChip" class="platform-chip" aria-live="polite">link?</span>
                     <button id="saveBtn" class="dpad-btn primary" aria-label="Download media"><span>FEED</span></button>
                     <button id="cancelBtn" class="dpad-btn cancel-btn" style="display:none" aria-label="Cancel download"><span>STOP</span></button>
                 </div>
@@ -157,6 +163,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=old-cat"></script>
+    <script src="script.js?v=catos-ui"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         status: string; created_at: string; file_size: number;
     }
     type CatMood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad' | 'sleep' | 'pet' | 'hungry';
+    type LinkPlatform = 'empty' | 'invalid' | 'youtube' | 'twitter' | 'tiktok' | 'instagram' | 'generic';
 
     const escapeHtml = (s: string): string => {
         const d = document.createElement('div');
@@ -115,6 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const thoughtBox = $<HTMLDivElement>('thoughtBox');
     const lcdState = $<HTMLSpanElement>('lcdState');
     const lcdHunger = $<HTMLSpanElement>('lcdHunger');
+    const lcdBattery = $<HTMLSpanElement>('lcdBattery');
+    const platformStatus = $<HTMLSpanElement>('platformStatus');
+    const platformChip = $<HTMLSpanElement>('platformChip');
     const lcdBarFill = $<HTMLDivElement>('lcdBarFill');
     const powerLed = $<HTMLSpanElement>('powerLed');
 
@@ -352,6 +356,62 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
+    const platformMeta: Record<LinkPlatform, { label: string; status: string; thought: string; valid: boolean }> = {
+        empty:     { label: 'link?', status: 'no link', thought: 'paste a link, hooman', valid: false },
+        invalid:   { label: 'bad?',  status: 'bad url', thought: 'that smells wrong', valid: false },
+        youtube:   { label: 'YT',    status: 'youtube', thought: 'long snack?', valid: true },
+        twitter:   { label: 'X',     status: 'bird link?', thought: 'bird link?', valid: true },
+        tiktok:    { label: 'TT',    status: 'tiktok', thought: 'tiny fish!', valid: true },
+        instagram: { label: 'IG',    status: 'instagram', thought: 'photo snack?', valid: true },
+        generic:   { label: 'WEB',   status: 'web link', thought: 'smells linkable', valid: true },
+    };
+
+    const detectPlatform = (raw: string): LinkPlatform => {
+        const value = raw.trim();
+        if (!value) return 'empty';
+        let url: URL;
+        try {
+            url = new URL(value);
+        } catch {
+            return 'invalid';
+        }
+        if (!/^https?:$/.test(url.protocol)) return 'invalid';
+        const host = url.hostname.replace(/^www\./, '').toLowerCase();
+        if (host.includes('youtube.com') || host === 'youtu.be') return 'youtube';
+        if (host === 'x.com' || host.includes('twitter.com')) return 'twitter';
+        if (host.includes('tiktok.com')) return 'tiktok';
+        if (host.includes('instagram.com')) return 'instagram';
+        return 'generic';
+    };
+
+    const flashLed = (state: 'idle' | 'busy' | 'happy' | 'alert' = 'happy') => {
+        powerLed.dataset.state = state;
+        powerLed.classList.add('flash');
+        setTimeout(() => {
+            powerLed.classList.remove('flash');
+            powerLed.dataset.state = currentMood === 'munch' ? 'busy' :
+                currentMood === 'happy' || currentMood === 'pet' ? 'happy' :
+                currentMood === 'sad' || currentMood === 'hungry' || currentMood === 'squat' ? 'alert' : 'idle';
+        }, 180);
+    };
+
+    const screenPulse = (className: string, ms = 280) => {
+        screenStage.classList.remove(className);
+        void screenStage.offsetWidth;
+        screenStage.classList.add(className);
+        setTimeout(() => screenStage.classList.remove(className), ms);
+    };
+
+    const updatePlatformUI = () => {
+        const platform = detectPlatform(videoUrlInput.value);
+        const meta = platformMeta[platform];
+        platformChip.textContent = meta.label;
+        platformChip.dataset.platform = platform;
+        platformStatus.textContent = meta.status;
+        saveBtn.dataset.ready = meta.valid ? 'true' : 'false';
+        return { platform, meta };
+    };
+
     const spawnHearts = (n: number) => {
         for (let i = 0; i < n; i++) {
             setTimeout(() => {
@@ -409,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 frameTickId = setInterval(() => {
                     munchToggle = !munchToggle;
                     renderSprite(catCanvas, munchToggle ? munchOpen : munchClosed, PAL);
+                    screenPulse('bite-pulse', 130);
                     sfx.munch();
                 }, 220);
                 break;
@@ -460,9 +521,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const setHunger = (hearts: number) => {
         const clamped = Math.max(0, Math.min(4, hearts));
         hungerLevel = clamped;
-        const filled = '@'.repeat(clamped);
-        const empty = '.'.repeat(4 - filled.length);
+        const filled = '♥'.repeat(clamped);
+        const empty = '♡'.repeat(4 - filled.length);
         lcdHunger.textContent = filled + empty;
+        lcdBattery.textContent = filled + empty;
     };
 
     const startProgressShimmer = () => {
@@ -514,6 +576,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFocused: HTMLElement | null = null;
 
     const openPanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
+        if (panel.classList.contains('open')) {
+            closePanel(panel, trigger);
+            return;
+        }
         const pairs: Array<[HTMLElement, HTMLButtonElement]> = [
             [settingsPanel, settingsBtn],
             [infoPanel, infoBtn],
@@ -525,10 +591,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lastFocused = document.activeElement as HTMLElement;
         screenStage.appendChild(panel);
+        screenPulse('screen-swap', 320);
         screenStage.classList.add('console-open');
         hideThought();
         panel.classList.add('open');
         trigger.setAttribute('aria-expanded', 'true');
+        trigger.classList.add('active');
+        flashLed('happy');
         const c = panel.querySelector('.panel-container') as HTMLElement;
         c.focus();
         const handler = (e: KeyboardEvent) => trapFocus(e, c);
@@ -540,9 +609,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const closePanel = (panel: HTMLElement, trigger: HTMLButtonElement, restoreFocus = true) => {
         panel.classList.remove('open');
         trigger.setAttribute('aria-expanded', 'false');
+        trigger.classList.remove('active');
         if ((panel as any)._focusTrap) panel.removeEventListener('keydown', (panel as any)._focusTrap);
         const anyOpen = [settingsPanel, infoPanel, historyPanel].some(p => p.classList.contains('open'));
-        if (!anyOpen) screenStage.classList.remove('console-open');
+        if (!anyOpen) {
+            screenStage.classList.remove('console-open');
+            screenPulse('screen-swap', 260);
+        }
         if (restoreFocus && lastFocused) lastFocused.focus();
     };
 
@@ -579,6 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 segments.forEach(s => s.classList.remove('active'));
                 seg.classList.add('active');
                 sfx.tick();
+                flashLed('happy');
                 const v = (seg as HTMLElement).dataset.value;
                 if (v !== undefined) (state as any)[key] = v;
             });
@@ -646,7 +720,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- History --- //
     const fetchHistory = async () => {
         try {
+            if (location.hostname === '127.0.0.1' && location.port === '8080') {
+                historyList.textContent = '';
+                const p = document.createElement('p');
+                p.className = 'small-text';
+                p.textContent = 'api sleeping in static preview.';
+                historyList.appendChild(p);
+                return;
+            }
             const res = await fetch('/api/history');
+            if (!res.ok) throw new Error('history unavailable');
             const data = await res.json();
             renderHistory(data);
         } catch {
@@ -706,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopPolling = () => { if (pollIntervalId) { clearInterval(pollIntervalId); pollIntervalId = null; } };
 
     const updateQueueProgress = (s: string) => {
-        if (s === 'active') { lcdState.textContent = '> chewing..'; setHunger(2); }
+        if (s === 'active') { lcdState.textContent = '> chewing..'; screenPulse('bite-pulse', 130); setHunger(2); }
         else                { lcdState.textContent = '> in queue'; setHunger(3); }
     };
 
@@ -720,9 +803,11 @@ document.addEventListener('DOMContentLoaded', () => {
             dropPoop(() => {
                 sfx.plop();
                 showToast('plop! download ready', 'success');
-                showThought('deposited!', 2500);
+                showThought('READY! file snack done', 2500);
                 setMood('happy');
                 setHunger(4);
+                lcdState.textContent = '> READY';
+                screenPulse('ready-flash', 650);
                 setTimeout(() => sfx.happy(), 300);
 
                 const a = document.createElement('a');
@@ -752,6 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'FEED';
         cancelBtn.style.display = 'none';
         setProgressBar(0);
+        updatePlatformUI();
         const next: CatMood = videoUrlInput.value.trim()
             ? 'sniff'
             : (hungerLevel <= 1 ? 'hungry' : 'idle');
@@ -761,9 +847,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleDownload = async () => {
         const url = videoUrlInput.value.trim();
-        if (!url) {
+        const { platform, meta } = updatePlatformUI();
+        if (platform === 'empty') {
             setMood('sad');
-            showThought('meow... paste a link first', 2200);
+            showThought('paste a link first', 2200);
+            screenPulse('screen-shake', 280);
+            sfx.error();
+            setTimeout(() => setMood(hungerLevel <= 1 ? 'hungry' : 'idle'), 900);
+            return;
+        }
+        if (!meta.valid) {
+            setMood('sad');
+            showThought(meta.thought, 2200);
+            screenPulse('screen-shake', 280);
             sfx.error();
             setTimeout(() => setMood(hungerLevel <= 1 ? 'hungry' : 'idle'), 900);
             return;
@@ -805,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    saveBtn.addEventListener('click', () => { sfx.click(); handleDownload(); });
+    saveBtn.addEventListener('click', () => { sfx.click(); flashLed('happy'); handleDownload(); });
     cancelBtn.addEventListener('click', () => {
         sfx.click();
         stopPolling();
@@ -818,16 +914,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     videoUrlInput.addEventListener('input', () => {
         lastInteraction = Date.now();
+        const { platform, meta } = updatePlatformUI();
         const restable = currentMood === 'idle' || currentMood === 'sniff' || currentMood === 'happy' ||
                          currentMood === 'sad' || currentMood === 'sleep' || currentMood === 'pet' ||
                          currentMood === 'hungry';
         if (restable) {
-            if (videoUrlInput.value.trim()) {
-                setMood('sniff');
-                showThought(pick(sniffThoughts));
-            } else {
+            if (platform === 'empty') {
                 hideThought();
                 setMood(hungerLevel <= 1 ? 'hungry' : 'idle');
+            } else if (meta.valid) {
+                setMood('sniff');
+                showThought(meta.thought, 1700);
+            } else {
+                setMood('sad');
+                showThought(meta.thought, 1400);
+                screenPulse('screen-shake', 260);
             }
         }
     });
@@ -835,28 +936,36 @@ document.addEventListener('DOMContentLoaded', () => {
     videoUrlInput.addEventListener('paste', () => {
         setTimeout(() => {
             if (videoUrlInput.value.trim() && currentMood !== 'munch' && currentMood !== 'squat') {
+                const { meta } = updatePlatformUI();
                 sfx.paste();
                 setMood('sniff');
-                showThought('snifff... a link!');
-                screen.animate(
-                    [{ transform: 'translate(0,0)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(2px,-1px)' }, { transform: 'translate(0,0)' }],
-                    { duration: 220, iterations: 1, easing: 'steps(4)' }
-                );
+                showThought(meta.valid ? meta.thought : 'snifff... bad smell?');
+                screenPulse(meta.valid ? 'screen-swap' : 'screen-shake', 260);
             }
         }, 0);
     });
 
+    const petReactions: Array<{ mood: CatMood; text: string; hearts: number; sound: 'purr' | 'happy' | 'error' }> = [
+        { mood: 'pet', text: '*purr*', hearts: 3, sound: 'purr' },
+        { mood: 'happy', text: '*head bonk*', hearts: 4, sound: 'happy' },
+        { mood: 'sleep', text: 'mrrr... nap?', hearts: 1, sound: 'purr' },
+        { mood: 'sad', text: 'hey! gentle!', hearts: 0, sound: 'error' },
+    ];
+    let petReactionIndex = 0;
+
     catCanvas.addEventListener('click', () => {
         lastInteraction = Date.now();
         if (currentMood === 'munch' || currentMood === 'squat') return;
-        sfx.purr();
-        spawnHearts(3);
+        const reaction = petReactions[petReactionIndex % petReactions.length];
+        petReactionIndex++;
+        sfx[reaction.sound]();
+        if (reaction.hearts) spawnHearts(reaction.hearts);
         const prev = videoUrlInput.value.trim();
         const restMood: CatMood = prev ? 'sniff' : (hungerLevel <= 1 ? 'hungry' : 'idle');
-        setMood('pet');
-        showThought(pick(petThoughts), 1500);
+        setMood(reaction.mood);
+        showThought(reaction.text, 1500);
         setTimeout(() => {
-            if (currentMood === 'pet') setMood(restMood);
+            if (currentMood === reaction.mood) setMood(restMood);
         }, 1400);
     });
 
@@ -883,11 +992,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Random idle nudges
         if (currentMood === 'idle' && Math.random() < 0.45) {
             const r = Math.random();
-            if (r < 0.55) {
+            if (r < 0.42) {
                 showThought(pick(idleThoughts), 2400);
-            } else if (r < 0.85) {
+            } else if (r < 0.66) {
                 setMood('sniff');
                 setTimeout(() => { if (currentMood === 'sniff' && !videoUrlInput.value.trim()) setMood('idle'); }, 900);
+            } else if (r < 0.84) {
+                screenPulse('cat-glance', 820);
+                showThought('*looks around*', 1400);
+            } else if (r < 0.94) {
+                screenPulse('cat-stretch', 940);
+                showThought('*stretch*', 1400);
             } else {
                 renderSprite(catCanvas, blinkFrame, PAL);
                 setTimeout(() => { if (currentMood === 'idle') renderSprite(catCanvas, idleFrame, PAL); }, 200);
@@ -929,5 +1044,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setMood('idle');
     setHunger(4);
     setProgressBar(0);
+    updatePlatformUI();
     showThought('paste a link, hooman', 3500);
 });

@@ -253,7 +253,9 @@ body {
 .led[data-state="busy"]  { background: #ffd700; box-shadow: inset 1px 1px 0 #fff5a8, 0 0 0 2px var(--shell-lo), 0 0 0 3px rgba(0,0,0,.6), 0 0 14px var(--lemon); animation: ledpulse .6s steps(2) infinite; }
 .led[data-state="happy"] { background: var(--mint); box-shadow: inset 1px 1px 0 #c8ffe8, 0 0 0 2px var(--shell-lo), 0 0 0 3px rgba(0,0,0,.6), 0 0 14px var(--mint); }
 .led[data-state="alert"] { background: var(--hot); box-shadow: inset 1px 1px 0 #ffaad0, 0 0 0 2px var(--shell-lo), 0 0 0 3px rgba(0,0,0,.6), 0 0 16px var(--hot); animation: ledpulse .25s steps(2) infinite; }
+.led.flash { animation: led-flash .18s steps(2) 1; }
 @keyframes ledpulse { 50% { filter: brightness(.5); } }
+@keyframes led-flash { 50% { transform: scale(1.45); filter: brightness(1.8); } }
 
 /* === Screen === */
 
@@ -312,12 +314,75 @@ body {
     position: relative;
     width: 100%; height: 100%;
     display: flex; flex-direction: column;
+    will-change: transform;
 }
 .screen-stage.console-open .cat-stage,
 .screen-stage.console-open > .lcd-readout {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+}
+.lcd-status {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 20px;
+    padding: 1px 4px 5px;
+    border-bottom: 1px solid rgba(10,32,48,.28);
+    color: var(--lcd-3);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+.lcd-os::before {
+    content: "▣ ";
+}
+.lcd-platform {
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lcd-battery {
+    color: var(--lcd-3);
+}
+.screen-stage.screen-swap::after,
+.screen-stage.ready-flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    pointer-events: none;
+}
+.screen-stage.screen-swap::after {
+    background: linear-gradient(90deg, transparent 0%, rgba(10,32,48,.35) 48%, transparent 100%);
+    transform: translateX(-115%);
+    animation: lcd-wipe .32s cubic-bezier(.2,.8,.2,1);
+}
+.screen-stage.ready-flash::after {
+    background: rgba(217,255,236,.55);
+    animation: lcd-flash .65s steps(4);
+}
+.screen-stage.screen-shake {
+    animation: lcd-shake .28s steps(4);
+}
+.screen-stage.bite-pulse .lcd-bar-fill {
+    filter: brightness(1.6);
+}
+@keyframes lcd-wipe {
+    to { transform: translateX(115%); }
+}
+@keyframes lcd-flash {
+    0%, 100% { opacity: 0; }
+    20%, 55% { opacity: 1; }
+}
+@keyframes lcd-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    50% { transform: translateX(3px); }
+    75% { transform: translateX(-2px); }
 }
 
 /* === Cat stage === */
@@ -350,6 +415,7 @@ body {
     animation: cat-bob 1.6s ease-in-out infinite;
     position: relative;
     z-index: 2;
+    will-change: transform;
 }
 .cat-canvas .px { width: var(--cell); height: var(--cell); }
 
@@ -365,6 +431,8 @@ body {
 [data-state="sleep"]   .cat-canvas { animation: cat-sleep 3.4s ease-in-out infinite; }
 [data-state="pet"]     .cat-canvas { animation: cat-pet 1.2s var(--beat) infinite; }
 [data-state="hungry"]  .cat-canvas { animation: cat-hungry 1.4s ease-in-out infinite; }
+.screen-stage.cat-glance .cat-canvas { animation: cat-glance .8s var(--beat); }
+.screen-stage.cat-stretch .cat-canvas { animation: cat-stretch .9s var(--beat); }
 .cat-canvas { cursor: pointer; }
 .cat-canvas:hover { filter: brightness(1.08) saturate(1.1); }
 
@@ -399,6 +467,14 @@ body {
 @keyframes cat-hungry {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-2px) translateX(1px); }
+}
+@keyframes cat-glance {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    45%      { transform: translateX(-7px) rotate(-3deg); }
+}
+@keyframes cat-stretch {
+    0%, 100% { transform: translateY(0) scale(1); }
+    45%      { transform: translateY(2px) scaleX(1.13) scaleY(.88); }
 }
 
 /* Hearts particle when petting */
@@ -630,6 +706,7 @@ body {
     grid-template-columns: 1fr;
     gap: 10px;
     padding: 12px;
+    position: relative;
     border-radius: 16px;
     background:
       linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.1)),
@@ -646,7 +723,7 @@ body {
     font-family: 'VT323', monospace;
     font-size: 22px;
     min-height: 48px;
-    padding: 10px 14px;
+    padding: 10px 74px 10px 14px;
     border: none;
     outline: none;
     border-radius: 8px;
@@ -670,6 +747,44 @@ body {
 }
 .pixel-input:focus::placeholder { color: var(--lcd-3); opacity: .55; }
 @keyframes cursor-blink { 50% { opacity: .35; } }
+
+.platform-chip {
+    position: absolute;
+    top: 23px;
+    right: 24px;
+    min-width: 42px;
+    max-width: 58px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 6px;
+    overflow: hidden;
+    color: var(--lcd-0);
+    background: var(--lcd-3);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    box-shadow:
+      inset 1px 1px 0 rgba(255,255,255,.16),
+      0 0 0 1px var(--lcd-2);
+    pointer-events: none;
+}
+.platform-chip[data-platform="empty"] {
+    opacity: .58;
+}
+.platform-chip[data-platform="invalid"] {
+    background: var(--hot);
+    color: #fff7fb;
+}
+.platform-chip[data-platform="youtube"],
+.platform-chip[data-platform="twitter"],
+.platform-chip[data-platform="tiktok"],
+.platform-chip[data-platform="instagram"],
+.platform-chip[data-platform="generic"] {
+    background: var(--mint);
+    color: var(--lcd-3);
+}
 
 .dpad-btn {
     margin-top: 2px;
@@ -696,7 +811,26 @@ body {
       /* drop shadow */
       0 7px 0 #6a4a00,
       0 10px 18px rgba(0,0,0,.56);
-    transition: transform .08s ease-out, box-shadow .08s ease-out;
+    transition:
+      transform .18s cubic-bezier(.2,.9,.2,1.35),
+      box-shadow .18s cubic-bezier(.2,.9,.2,1.35),
+      filter .18s ease;
+    will-change: transform;
+}
+.dpad-btn[data-ready="false"] {
+    filter: saturate(.72) brightness(.9);
+}
+.dpad-btn[data-ready="true"] {
+    filter: saturate(1.1) brightness(1.06);
+    box-shadow:
+      0 0 0 4px #6a4a00,
+      0 0 0 7px var(--shell-shadow),
+      0 0 0 9px rgba(255,255,255,.12),
+      0 0 24px rgba(255,225,74,.42),
+      inset 0 3px 0 rgba(255,255,255,.6),
+      inset 0 -4px 0 rgba(0,0,0,.35),
+      0 7px 0 #6a4a00,
+      0 10px 18px rgba(0,0,0,.56);
 }
 .dpad-btn:hover {
     transform: translateY(-2px);
@@ -758,10 +892,28 @@ body {
       0 4px 0 #050001,
       0 6px 10px rgba(0,0,0,.38);
     letter-spacing: .8px;
-    transition: transform .08s steps(2), box-shadow .08s steps(2);
+    transition:
+      transform .18s cubic-bezier(.2,.9,.2,1.35),
+      box-shadow .18s cubic-bezier(.2,.9,.2,1.35),
+      color .18s ease,
+      background .18s ease;
+    will-change: transform;
 }
 .ctrl-pill:hover { transform: translate(-1px, -1px); filter: brightness(1.15); }
 .ctrl-pill:focus-visible { outline: 2px dashed var(--lemon); outline-offset: 4px; }
+.ctrl-pill.active,
+.ctrl-pill[aria-expanded="true"] {
+    color: var(--mint);
+    background:
+      linear-gradient(180deg, #3a0710 0%, #160004 100%);
+    box-shadow:
+      0 0 0 2px #000,
+      0 0 14px rgba(131,255,198,.25),
+      inset 0 2px 0 rgba(255,255,255,.2),
+      inset 0 -3px 0 rgba(0,0,0,.48),
+      0 2px 0 #050001,
+      0 4px 8px rgba(0,0,0,.4);
+}
 .ctrl-pill:active {
     transform: translate(3px, 3px);
     box-shadow:
@@ -826,8 +978,11 @@ body {
     overflow: hidden;
     color: var(--lcd-3);
 }
-.side-panel.open { display: block; animation: panel-fade .18s steps(3); }
-@keyframes panel-fade { from { opacity: 0; } to { opacity: 1; } }
+.side-panel.open { display: block; animation: panel-fade .22s cubic-bezier(.2,.8,.2,1); }
+@keyframes panel-fade {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
 
 .panel-container {
     width: 100%;
@@ -840,7 +995,7 @@ body {
       inset 3px 3px 0 rgba(255,255,255,.2),
       inset -3px -3px 0 rgba(10,32,48,.12);
     outline: none;
-    animation: panel-pop .22s steps(4);
+    animation: panel-pop .22s cubic-bezier(.2,.8,.2,1);
     image-rendering: pixelated;
     overflow: hidden;
     display: flex;
@@ -863,6 +1018,10 @@ body {
     color: var(--lcd-3);
     letter-spacing: .8px;
     flex: none;
+}
+.panel-header::before {
+    content: ">";
+    margin-right: 6px;
 }
 .panel-header h2 {
     font-size: 8px;
@@ -890,6 +1049,17 @@ body {
     min-height: 0;
     scrollbar-width: thin;
     scrollbar-color: var(--lcd-3) transparent;
+    font-family: 'VT323', monospace;
+}
+.panel-content::before {
+    content: "catos$ open";
+    display: block;
+    margin-bottom: 7px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(10,32,48,.24);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    letter-spacing: .45px;
 }
 .panel-content p, .panel-content ul { margin-bottom: 8px; }
 .panel-content ul { list-style: none; padding-left: 0; }
@@ -902,6 +1072,12 @@ body {
     color: var(--lcd-3);
     padding: 6px 7px;
     box-shadow: 0 0 0 1px var(--lcd-2);
+    transition: background .16s ease, transform .16s cubic-bezier(.2,.9,.2,1.2);
+}
+.history-item:hover,
+.setting-group:hover {
+    background: rgba(10,32,48,.14);
+    transform: translateX(2px);
 }
 .history-item-top {
     display: flex; justify-content: space-between;
@@ -913,7 +1089,11 @@ body {
 }
 .history-item-title { font-size: 14px; word-break: break-all; }
 
-.setting-group { margin-bottom: 8px; }
+.setting-group {
+    margin-bottom: 8px;
+    padding: 4px;
+    transition: background .16s ease, transform .16s cubic-bezier(.2,.9,.2,1.2);
+}
 .setting-group > label {
     display: block;
     font-family: 'Press Start 2P', monospace;
@@ -979,7 +1159,8 @@ body {
     .screen { padding: 14px; }
     .device-controls { padding-inline: 4px; }
     .input-pad { padding: 10px; }
-    .pixel-input { font-size: 20px; min-height: 46px; }
+    .pixel-input { font-size: 20px; min-height: 46px; padding-right: 66px; }
+    .platform-chip { top: 20px; right: 20px; min-width: 38px; max-width: 48px; }
     .dpad-btn { min-height: 50px; font-size: 11px; }
     .bottom-pad { gap: 7px; }
     .ctrl-pill { font-size: 7px; padding-inline: 4px; }
