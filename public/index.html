@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>allkitty ◍ pocket downloader</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=console-lcd">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -18,30 +18,6 @@
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
     <main class="device" role="main">
-        <svg class="handle-hand handle-hand-left" viewBox="0 0 150 250" aria-hidden="true" focusable="false">
-            <path class="handle-arm" d="M56-8h42c10 0 18 8 18 18v100c0 12-10 22-22 22H60c-12 0-22-10-22-22V10c0-10 8-18 18-18z"/>
-            <path class="handle-wrist" d="M46 98c8-8 24-12 42-8 20 4 34 18 34 38v26c0 17-10 31-25 36l-42 14c-18 6-35-7-35-26v-30c0-20 9-38 26-50z"/>
-            <path class="handle-palm" d="M42 118c13-19 40-24 61-13 17 9 26 26 22 47l-5 29c-3 18-17 31-35 33l-30 4c-21 3-40-13-42-34l-2-20c-2-18 9-31 25-34z"/>
-            <path class="handle-thumb" d="M34 165c-15 4-25 15-25 30 0 17 13 29 30 28l28-2c10-1 16-9 15-18-1-9-9-15-19-14l-20 1c-6 0-10-3-10-8s4-9 10-10z"/>
-            <path class="handle-finger finger-a" d="M76 113c-8 8-11 20-5 29l33 50c6 9 18 10 26 4 8-7 9-18 3-27l-31-47c-6-10-18-14-26-9z"/>
-            <path class="handle-finger finger-b" d="M55 122c-9 8-11 20-4 29l28 37c7 9 19 10 27 3 8-7 8-19 1-28l-26-35c-7-9-18-12-26-6z"/>
-            <path class="handle-finger finger-c" d="M38 138c-8 8-9 20-1 28l22 23c8 8 20 8 27 0 7-7 7-19-1-27l-21-22c-8-8-19-9-26-2z"/>
-            <path class="handle-nail nail-a" d="M94 125c8 5 14 14 17 24"/>
-            <path class="handle-nail nail-b" d="M72 133c8 4 13 10 17 18"/>
-            <path class="handle-line" d="M48 194c15 11 38 12 55 2"/>
-        </svg>
-        <svg class="handle-hand handle-hand-right" viewBox="0 0 150 250" aria-hidden="true" focusable="false">
-            <path class="handle-arm" d="M56-8h42c10 0 18 8 18 18v100c0 12-10 22-22 22H60c-12 0-22-10-22-22V10c0-10 8-18 18-18z"/>
-            <path class="handle-wrist" d="M46 98c8-8 24-12 42-8 20 4 34 18 34 38v26c0 17-10 31-25 36l-42 14c-18 6-35-7-35-26v-30c0-20 9-38 26-50z"/>
-            <path class="handle-palm" d="M42 118c13-19 40-24 61-13 17 9 26 26 22 47l-5 29c-3 18-17 31-35 33l-30 4c-21 3-40-13-42-34l-2-20c-2-18 9-31 25-34z"/>
-            <path class="handle-thumb" d="M34 165c-15 4-25 15-25 30 0 17 13 29 30 28l28-2c10-1 16-9 15-18-1-9-9-15-19-14l-20 1c-6 0-10-3-10-8s4-9 10-10z"/>
-            <path class="handle-finger finger-a" d="M76 113c-8 8-11 20-5 29l33 50c6 9 18 10 26 4 8-7 9-18 3-27l-31-47c-6-10-18-14-26-9z"/>
-            <path class="handle-finger finger-b" d="M55 122c-9 8-11 20-4 29l28 37c7 9 19 10 27 3 8-7 8-19 1-28l-26-35c-7-9-18-12-26-6z"/>
-            <path class="handle-finger finger-c" d="M38 138c-8 8-9 20-1 28l22 23c8 8 20 8 27 0 7-7 7-19-1-27l-21-22c-8-8-19-9-26-2z"/>
-            <path class="handle-nail nail-a" d="M94 125c8 5 14 14 17 24"/>
-            <path class="handle-nail nail-b" d="M72 133c8 4 13 10 17 18"/>
-            <path class="handle-line" d="M48 194c15 11 38 12 55 2"/>
-        </svg>
         <div class="device-shell">
             <span class="screw screw-tl" aria-hidden="true"></span>
             <span class="screw screw-tr" aria-hidden="true"></span>
@@ -58,7 +34,7 @@
             <section class="screen" id="screen" data-state="idle">
                 <div class="screen-bezel">
                     <div class="screen-glass">
-                        <div class="screen-stage">
+                        <div class="screen-stage" id="screenStage">
                             <div class="cat-stage">
                                 <div class="cat-canvas" id="catCanvas" aria-label="pixel cat mascot" role="img"></div>
                                 <div class="poop-stage" id="poopStage" aria-hidden="true"></div>
@@ -181,6 +157,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=console-lcd"></script>
 </body>
 </html>

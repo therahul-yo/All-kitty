@@ -88,69 +88,6 @@ body {
     z-index: 2;
 }
 
-/* Smooth reference-style hands actually holding the top keyring */
-.handle-hand {
-    position: absolute;
-    top: -226px;
-    width: 150px;
-    height: 250px;
-    pointer-events: none;
-    overflow: visible;
-    z-index: 4;
-    transform-origin: 50% 100%;
-    filter:
-      drop-shadow(0 5px 0 rgba(0,0,0,.42))
-      drop-shadow(0 16px 16px rgba(0,0,0,.58));
-}
-.handle-hand-left {
-    left: calc(50% - 137px);
-    transform: rotate(-12deg);
-    animation: handle-hand-left 4.8s ease-in-out infinite;
-}
-.handle-hand-right {
-    left: calc(50% - 13px);
-    transform: scaleX(-1) rotate(-12deg);
-    animation: handle-hand-right 4.8s ease-in-out infinite;
-}
-.handle-hand .handle-arm {
-    fill: #ffe4c8;
-    stroke: #5a120f;
-    stroke-width: 5.5;
-    stroke-linejoin: round;
-}
-.handle-hand .handle-wrist,
-.handle-hand .handle-palm,
-.handle-hand .handle-thumb,
-.handle-hand .handle-finger {
-    fill: #ffe1c1;
-    stroke: #5a120f;
-    stroke-width: 5.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.handle-hand .handle-wrist { fill: #ffd7b2; }
-.handle-hand .handle-thumb { fill: #ffd3aa; }
-.handle-hand .finger-a { fill: #ffe6ca; }
-.handle-hand .finger-b { fill: #ffddb9; }
-.handle-hand .finger-c { fill: #ffd3aa; }
-.handle-hand .handle-line,
-.handle-hand .handle-nail {
-    fill: none;
-    stroke: #9a4a36;
-    stroke-width: 4;
-    stroke-linecap: round;
-    opacity: .62;
-}
-
-@keyframes handle-hand-left {
-    0%, 100% { transform: translate3d(0, 0, 0) rotate(-12deg); }
-    50%      { transform: translate3d(2px, 3px, 0) rotate(-9deg); }
-}
-@keyframes handle-hand-right {
-    0%, 100% { transform: scaleX(-1) translate3d(0, 0, 0) rotate(-12deg); }
-    50%      { transform: scaleX(-1) translate3d(2px, 3px, 0) rotate(-9deg); }
-}
-
 /* Tamagotchi-style keyring handle on top of the device */
 /* Outer chrome ring */
 .device::before {
@@ -375,6 +312,12 @@ body {
     position: relative;
     width: 100%; height: 100%;
     display: flex; flex-direction: column;
+}
+.screen-stage.console-open .cat-stage,
+.screen-stage.console-open > .lcd-readout {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* === Cat stage === */
@@ -869,123 +812,146 @@ body {
     75% { transform: translateX(-2px); }
 }
 
-/* === Side panels === */
+/* === In-LCD Console Panels === */
 
 .side-panel {
-    position: fixed;
+    position: absolute;
     inset: 0;
-    background: rgba(10, 7, 18, .55);
-    backdrop-filter: blur(2px);
+    background:
+      repeating-linear-gradient(to bottom, transparent 0, transparent 2px, rgba(10,32,48,.08) 2px, rgba(10,32,48,.08) 3px),
+      linear-gradient(180deg, rgba(184,232,224,.97), rgba(136,200,192,.98));
     display: none;
-    place-items: center;
-    z-index: 200;
-    padding: 24px;
+    z-index: 20;
+    padding: 8px;
+    overflow: hidden;
+    color: var(--lcd-3);
 }
-.side-panel.open { display: grid; animation: panel-fade .25s ease-out; }
+.side-panel.open { display: block; animation: panel-fade .18s steps(3); }
 @keyframes panel-fade { from { opacity: 0; } to { opacity: 1; } }
 
 .panel-container {
-    width: min(380px, 100%);
-    background: var(--shell-hi);
-    color: var(--ink);
-    padding: 16px;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: var(--lcd-3);
+    padding: 8px 9px;
     box-shadow:
-      0 0 0 4px var(--ink),
-      8px 8px 0 4px var(--shell-shadow),
-      8px 8px 0 8px var(--ink);
+      inset 0 0 0 2px rgba(10,32,48,.34),
+      inset 3px 3px 0 rgba(255,255,255,.2),
+      inset -3px -3px 0 rgba(10,32,48,.12);
     outline: none;
-    animation: panel-pop .35s var(--beat);
+    animation: panel-pop .22s steps(4);
     image-rendering: pixelated;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 @keyframes panel-pop {
-    0%   { transform: translateY(20px) scale(.92); opacity: 0; }
-    100% { transform: translateY(0) scale(1); opacity: 1; }
+    0%   { transform: translateY(4px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
 }
 
 .panel-header {
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 3px dashed var(--shell-shadow);
-    padding-bottom: 10px; margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px dashed var(--lcd-2);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
     font-family: 'Press Start 2P', monospace;
-    font-size: 11px;
-    color: var(--shell-shadow);
-    letter-spacing: 1px;
+    font-size: 8px;
+    color: var(--lcd-3);
+    letter-spacing: .8px;
+    flex: none;
 }
-.panel-header h2 { font-size: 11px; font-weight: normal; }
+.panel-header h2 {
+    font-size: 8px;
+    font-weight: normal;
+    line-height: 1.35;
+}
 .close-btn {
-    background: var(--hot); color: #fff;
+    background: var(--lcd-3);
+    color: var(--lcd-0);
     border: none;
-    width: 26px; height: 26px;
-    font-size: 18px;
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
     line-height: 1;
     cursor: pointer;
-    box-shadow: 0 0 0 2px var(--ink), 3px 3px 0 var(--ink);
+    box-shadow: 0 0 0 2px var(--lcd-2), 2px 2px 0 var(--lcd-3);
     font-family: 'Press Start 2P', monospace;
 }
-.close-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 2px var(--ink); }
+.close-btn:active { transform: translate(1px,1px); box-shadow: 0 0 0 2px var(--lcd-2); }
 
-.panel-content { font-size: 18px; line-height: 1.4; }
-.panel-content p, .panel-content ul { margin-bottom: 10px; }
+.panel-content {
+    font-size: 16px;
+    line-height: 1.15;
+    overflow-y: auto;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--lcd-3) transparent;
+}
+.panel-content p, .panel-content ul { margin-bottom: 8px; }
 .panel-content ul { list-style: none; padding-left: 0; }
-.panel-content li::before { content: "▸ "; color: var(--hot); }
-.small-text { font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--shell-shadow); letter-spacing: 1px; }
+.panel-content li::before { content: "▸ "; color: var(--lcd-3); }
+.small-text { font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--lcd-3); letter-spacing: .5px; }
 
-.history-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.history-list { display: flex; flex-direction: column; gap: 7px; max-height: none; overflow-y: visible; }
 .history-item {
-    background: var(--shell);
-    color: var(--ink);
-    padding: 8px 10px;
-    box-shadow: 0 0 0 2px var(--ink), 3px 3px 0 var(--shell-shadow);
+    background: rgba(10,32,48,.08);
+    color: var(--lcd-3);
+    padding: 6px 7px;
+    box-shadow: 0 0 0 1px var(--lcd-2);
 }
 .history-item-top {
     display: flex; justify-content: space-between;
     font-family: 'Press Start 2P', monospace;
-    font-size: 8px;
-    color: var(--shell-shadow);
+    font-size: 6px;
+    color: var(--lcd-3);
     margin-bottom: 4px;
-    letter-spacing: 1px;
+    letter-spacing: .4px;
 }
-.history-item-title { font-size: 16px; word-break: break-all; }
+.history-item-title { font-size: 14px; word-break: break-all; }
 
-.setting-group { margin-bottom: 14px; }
+.setting-group { margin-bottom: 8px; }
 .setting-group > label {
     display: block;
     font-family: 'Press Start 2P', monospace;
-    font-size: 9px;
-    color: var(--shell-shadow);
-    margin-bottom: 6px;
-    letter-spacing: 1px;
+    font-size: 7px;
+    color: var(--lcd-3);
+    margin-bottom: 5px;
+    letter-spacing: .5px;
 }
 .toggle-group { display: flex; justify-content: space-between; align-items: center; }
 .segmented-control {
     display: flex;
-    background: var(--shell);
-    box-shadow: inset 2px 2px 0 var(--shell-shadow), 0 0 0 2px var(--ink);
+    background: rgba(10,32,48,.12);
+    box-shadow: inset 1px 1px 0 var(--lcd-2), 0 0 0 1px var(--lcd-3);
 }
 .segment {
     flex: 1;
     background: transparent;
     border: none;
-    padding: 8px 6px;
+    padding: 7px 4px;
     font-family: 'Press Start 2P', monospace;
-    font-size: 9px;
-    color: var(--shell-shadow);
+    font-size: 6px;
+    color: var(--lcd-3);
     cursor: pointer;
-    letter-spacing: 1px;
+    letter-spacing: .4px;
     transition: background .1s steps(2);
 }
-.segment:hover { background: rgba(0,0,0,.08); }
+.segment:hover { background: rgba(10,32,48,.08); }
 .segment.active {
-    background: var(--lemon);
-    color: var(--ink);
-    box-shadow: inset 2px 2px 0 #fff5a8, inset -2px -2px 0 #c79a00;
+    background: var(--lcd-3);
+    color: var(--lcd-0);
+    box-shadow: inset 1px 1px 0 rgba(255,255,255,.18), inset -1px -1px 0 rgba(0,0,0,.2);
 }
 .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
 .switch input { display: none; }
 .slider {
     position: absolute; inset: 0;
-    background: var(--shell);
-    box-shadow: 0 0 0 2px var(--ink);
+    background: rgba(10,32,48,.14);
+    box-shadow: 0 0 0 1px var(--lcd-3);
     cursor: pointer;
     transition: background .15s steps(2);
 }
@@ -994,23 +960,16 @@ body {
     position: absolute;
     width: 16px; height: 16px;
     top: 3px; left: 3px;
-    background: var(--shell-hi);
-    box-shadow: 0 0 0 2px var(--ink);
+    background: var(--lcd-1);
+    box-shadow: 0 0 0 1px var(--lcd-3);
     transition: transform .12s steps(3);
 }
-.switch input:checked + .slider { background: var(--mint); }
-.switch input:checked + .slider::before { transform: translateX(20px); background: var(--lemon); }
+.switch input:checked + .slider { background: var(--lcd-3); }
+.switch input:checked + .slider::before { transform: translateX(20px); background: var(--lcd-0); }
 
 @media (max-width: 480px) {
     body { padding: 72px 10px 24px; }
     .device { width: 100%; }
-    .handle-hand {
-        top: -184px;
-        width: 118px;
-        height: 198px;
-    }
-    .handle-hand-left { left: calc(50% - 108px); }
-    .handle-hand-right { left: calc(50% - 10px); }
     .device::before { top: -54px; width: 24px; height: 24px; border-width: 10px; }
     .device::after { top: -21px; width: 40px; height: 30px; }
     .device-shell { padding: 16px 14px 24px; border-radius: 24px 24px 30px 30px; }

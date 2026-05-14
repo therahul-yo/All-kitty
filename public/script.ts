@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = $<HTMLButtonElement>('cancelBtn');
     const toastContainer = $<HTMLDivElement>('toastContainer');
     const screen = $<HTMLDivElement>('screen');
+    const screenStage = $<HTMLDivElement>('screenStage');
     const catCanvas = $<HTMLDivElement>('catCanvas');
     const poopStage = $<HTMLDivElement>('poopStage');
     const thought = $<HTMLDivElement>('thought');
@@ -513,7 +514,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFocused: HTMLElement | null = null;
 
     const openPanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
+        const pairs: Array<[HTMLElement, HTMLButtonElement]> = [
+            [settingsPanel, settingsBtn],
+            [infoPanel, infoBtn],
+            [historyPanel, historyBtn]
+        ];
+        pairs.forEach(([p, b]) => {
+            if (p !== panel && p.classList.contains('open')) closePanel(p, b, false);
+        });
+
         lastFocused = document.activeElement as HTMLElement;
+        screenStage.appendChild(panel);
+        screenStage.classList.add('console-open');
+        hideThought();
         panel.classList.add('open');
         trigger.setAttribute('aria-expanded', 'true');
         const c = panel.querySelector('.panel-container') as HTMLElement;
@@ -524,11 +537,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (panel === historyPanel) fetchHistory();
     };
 
-    const closePanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
+    const closePanel = (panel: HTMLElement, trigger: HTMLButtonElement, restoreFocus = true) => {
         panel.classList.remove('open');
         trigger.setAttribute('aria-expanded', 'false');
         if ((panel as any)._focusTrap) panel.removeEventListener('keydown', (panel as any)._focusTrap);
-        if (lastFocused) lastFocused.focus();
+        const anyOpen = [settingsPanel, infoPanel, historyPanel].some(p => p.classList.contains('open'));
+        if (!anyOpen) screenStage.classList.remove('console-open');
+        if (restoreFocus && lastFocused) lastFocused.focus();
     };
 
     settingsBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(settingsPanel, settingsBtn); });
