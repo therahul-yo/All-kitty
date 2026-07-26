@@ -17,7 +17,7 @@ A robust, production-ready media downloading service built with Node.js, TypeScr
   - Secure HTTP headers via `Helmet`.
 - **🧪 Comprehensive Testing:** Unit and integration tests using `Jest` and `Supertest`.
 - **🐳 DevOps Ready:** Fully containerized with `Docker` and `Docker Compose`.
-- **🎨 Modern UI:** Zero-dependency Vanilla JS frontend with real-time queue polling and interactive animations.
+- **🎮 A handheld you can hold:** The whole frontend is a 3D console rendered in CSS — extruded shell, tactile buttons, pointer-tracked tilt, a 160×144 dot-matrix screen and a chiptune synth. Zero runtime dependencies.
 
 ## 🛠️ Tech Stack
 
@@ -70,6 +70,29 @@ The easiest way to run the full stack (App + Redis):
 ```bash
 docker-compose up --build
 ```
+
+## 🎮 The Handheld
+
+The UI is a single device — the AK-01 Pocket. Flip **POWER** on the top edge and it boots.
+
+| Control | Does |
+|---------|------|
+| **A** / `Enter` | Feed the cat the link (starts the download) |
+| **B** / `Esc` | Back out of a menu, cancel a running job, clear the field |
+| **START** / `Space` | Settings — format, quality, codec, sound, shell and screen themes |
+| **SELECT** / `L` | Litter log — recent downloads |
+| **D-pad** / arrows | Move through menus, change values, poke the cat |
+| **POWER** / `P` | On/off, with the boot jingle |
+| **VOL / CON wheels** | Drag the side wheels for volume and screen contrast |
+
+Drag the shell itself to turn it in 3D. Click the cat to pet it. Pull the cartridge
+out of the top slot if you want to see what happens.
+
+Everything is laid out in one `--u` unit, so the console scales as a single object
+from a phone to a desktop with no separate mobile layout.
+
+**Frontend build:** `public/script.ts` compiles to a standalone `public/script.js`
+(it is gitignored). `npm run build:web` produces it, and `npm run dev` does it for you.
 
 ## ⚙️ Configuration
 

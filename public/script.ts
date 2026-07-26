@@ -1,918 +1,1300 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Constants --- //
-    const TOAST_DURATION = 4000;
-    const TOAST_REMOVE_DELAY = 300;
-    const MAX_TOASTS = 3;
-    const POLL_INTERVAL = 2000;
+/* ══════════════════════════════════════════════════════════════════════════
+   ALLKITTY POCKET — handheld firmware.
 
-    // --- Interfaces --- //
-    interface State {
-        downloadMode: 'video' | 'audio' | 'mute';
+   Compiled standalone (tsc --outFile), so this file is one script, no modules.
+   Layout:  helpers ▸ audio ▸ sprites ▸ scene ▸ views ▸ input ▸ api ▸ boot
+   ══════════════════════════════════════════════════════════════════════════ */
+
+(() => {
+    'use strict';
+
+    /* ── helpers ──────────────────────────────────────────────────────────── */
+
+    const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+    const clamp = (n: number, lo: number, hi: number) => n < lo ? lo : n > hi ? hi : n;
+    const pick = <T>(a: T[]): T => a[(Math.random() * a.length) | 0];
+    const chance = (p: number) => Math.random() < p;
+
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ── persisted settings ───────────────────────────────────────────────── */
+
+    type Diet = 'video' | 'audio';
+    type Shell = 'dmg' | 'grape' | 'pika' | 'noir';
+    type Screen = 'green' | 'pocket' | 'aqua' | 'candy';
+
+    interface Settings {
+        diet: Diet;
         quality: string;
         codec: string;
-        audioFormat: string;
-        mute: boolean;
+        silent: boolean;
+        sfx: boolean;
+        bgm: boolean;
+        vol: number;        /* 0..10 */
+        contrast: number;   /* 0..10 */
+        shell: Shell;
+        screen: Screen;
+        color: boolean;     /* colour sprites instead of 4-shade mono */
     }
-    interface ToastJob { msg: string; type: 'success' | 'error' | 'info'; }
+
+    const DEFAULTS: Settings = {
+        diet: 'video', quality: '1080', codec: 'h264', silent: false,
+        sfx: true, bgm: false, vol: 6, contrast: 5,
+        shell: 'dmg', screen: 'green', color: false,
+    };
+
+    const STORE = 'allkitty.pocket';
+    const cfg: Settings = (() => {
+        try {
+            const raw = localStorage.getItem(STORE);
+            return raw ? { ...DEFAULTS, ...JSON.parse(raw) } as Settings : { ...DEFAULTS };
+        } catch { return { ...DEFAULTS }; }
+    })();
+    const saveCfg = () => { try { localStorage.setItem(STORE, JSON.stringify(cfg)); } catch { /* private mode */ } };
+
+    /* ── dom ──────────────────────────────────────────────────────────────── */
+
+    const rig = $<HTMLDivElement>('rig');
+    const consoleEl = $<HTMLDivElement>('console');
+    const lcdDark = $<HTMLDivElement>('lcdDark');
+    const gfx = $<HTMLCanvasElement>('gfx');
+    const ctx = gfx.getContext('2d') as CanvasRenderingContext2D;
+    const powerLed = $<HTMLSpanElement>('powerLed');
+    const powerBtn = $<HTMLButtonElement>('powerBtn');
+    const speaker = $<HTMLDivElement>('speaker');
+    const cart = $<HTMLDivElement>('cart');
+    const cartBtn = $<HTMLButtonElement>('cartBtn');
+    const volKnob = $<HTMLDivElement>('volKnob');
+    const conKnob = $<HTMLDivElement>('conKnob');
+
+    const hudHearts = $<HTMLSpanElement>('hudHearts');
+    const hudState = $<HTMLSpanElement>('hudState');
+    const bubble = $<HTMLDivElement>('bubble');
+    const bubbleText = $<HTMLSpanElement>('bubbleText');
+    const urlInput = $<HTMLInputElement>('urlInput');
+    const pasteBtn = $<HTMLButtonElement>('pasteBtn');
+    const pbarFill = $<HTMLSpanElement>('pbarFill');
+    const pbarNum = $<HTMLSpanElement>('pbarNum');
+    const hint = $<HTMLDivElement>('hint');
+    const menuList = $<HTMLUListElement>('menuList');
+    const logList = $<HTMLUListElement>('logList');
+    const osd = $<HTMLDivElement>('osd');
+    const osdText = $<HTMLSpanElement>('osdText');
+    const scrToast = $<HTMLDivElement>('scrToast');
+    const srStatus = $<HTMLDivElement>('srStatus');
+    const btnA = $<HTMLButtonElement>('btnA');
+    const btnB = $<HTMLButtonElement>('btnB');
+    const btnStart = $<HTMLButtonElement>('btnStart');
+    const btnSelect = $<HTMLButtonElement>('btnSelect');
+    const dpadPlate = $<HTMLDivElement>('dpadPlate');
+    const views: Record<string, HTMLElement> = {};
+    document.querySelectorAll<HTMLElement>('.view').forEach(v => { views[v.dataset.view as string] = v; });
+
+    /* ══ AUDIO ════════════════════════════════════════════════════════════════
+       A tiny square/triangle/noise synth pushed through a "cheap speaker"
+       filter chain, so it sounds like it is coming out of the plastic.        */
+
+    let ac: AudioContext | null = null;
+    let master: GainNode | null = null;
+
+    const audioReady = (): boolean => {
+        if (!cfg.sfx) return false;
+        if (!ac) {
+            const Ctor: typeof AudioContext | undefined =
+                (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!Ctor) return false;
+            ac = new Ctor();
+            master = ac.createGain();
+            const hp = ac.createBiquadFilter();
+            hp.type = 'highpass'; hp.frequency.value = 340;
+            const lp = ac.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 6200;
+            master.connect(hp).connect(lp).connect(ac.destination);
+            master.gain.value = cfg.vol / 10 * 0.6;
+        }
+        if (ac.state === 'suspended') void ac.resume();
+        return true;
+    };
+
+    const setVolume = () => { if (master) master.gain.value = cfg.vol / 10 * 0.6; };
+
+    interface Blip {
+        f: number; to?: number; d?: number; v?: number;
+        type?: OscillatorType; at?: number; slide?: 'exp' | 'lin';
+    }
+
+    const tone = (o: Blip) => {
+        if (!audioReady() || !ac || !master) return;
+        const t0 = ac.currentTime + (o.at || 0);
+        const d = o.d ?? 0.09;
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        osc.type = o.type || 'square';
+        osc.frequency.setValueAtTime(o.f, t0);
+        if (o.to !== undefined) {
+            if (o.slide === 'lin') osc.frequency.linearRampToValueAtTime(Math.max(1, o.to), t0 + d);
+            else osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.to), t0 + d);
+        }
+        const v = o.v ?? 0.09;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(v, t0 + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+        osc.connect(g).connect(master);
+        osc.start(t0);
+        osc.stop(t0 + d + 0.03);
+        thump();
+    };
+
+    let noiseBuf: AudioBuffer | null = null;
+    const noise = (d = 0.08, v = 0.06, freq = 1400, at = 0) => {
+        if (!audioReady() || !ac || !master) return;
+        if (!noiseBuf) {
+            noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+            const ch = noiseBuf.getChannelData(0);
+            for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+        }
+        const t0 = ac.currentTime + at;
+        const src = ac.createBufferSource();
+        src.buffer = noiseBuf;
+        src.loop = true;
+        const bp = ac.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.9;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(v, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+        src.connect(bp).connect(g).connect(master);
+        src.start(t0);
+        src.stop(t0 + d + 0.02);
+    };
+
+    let thumpTimer = 0;
+    const thump = () => {
+        if (reduceMotion) return;
+        speaker.classList.add('is-thumping');
+        clearTimeout(thumpTimer);
+        thumpTimer = window.setTimeout(() => speaker.classList.remove('is-thumping'), 280);
+    };
+
+    const sfx = {
+        tick:    () => tone({ f: 1500, d: 0.02, v: 0.045 }),
+        click:   () => { tone({ f: 900, to: 1300, d: 0.045, v: 0.07 }); },
+        move:    () => tone({ f: 1180, d: 0.03, v: 0.05 }),
+        accept:  () => { tone({ f: 880, d: 0.05, v: 0.08 }); tone({ f: 1320, d: 0.08, v: 0.07, at: 0.05 }); },
+        back:    () => { tone({ f: 660, to: 380, d: 0.09, v: 0.07 }); },
+        type:    () => tone({ f: 2000 + Math.random() * 400, d: 0.012, v: 0.028 }),
+        boot:    () => {
+            tone({ f: 523.25, d: 0.11, v: 0.09, type: 'square' });
+            tone({ f: 783.99, d: 0.11, v: 0.09, type: 'square', at: 0.12 });
+            tone({ f: 1046.5, d: 0.34, v: 0.1, type: 'square', at: 0.24 });
+            tone({ f: 1567.98, d: 0.5, v: 0.05, type: 'triangle', at: 0.24 });
+            noise(0.3, 0.02, 2600, 0.24);
+        },
+        off:     () => { tone({ f: 700, to: 60, d: 0.4, v: 0.09, type: 'triangle' }); noise(0.35, 0.03, 700); },
+        munch:   () => { tone({ f: 190, to: 120, d: 0.055, v: 0.05, type: 'sawtooth' }); noise(0.04, 0.03, 900); },
+        gulp:    () => tone({ f: 420, to: 180, d: 0.12, v: 0.07, type: 'sine' }),
+        plop:    () => {
+            tone({ f: 760, to: 90, d: 0.3, v: 0.12, type: 'sine' });
+            tone({ f: 210, to: 60, d: 0.18, v: 0.06, at: 0.04 });
+            noise(0.12, 0.05, 500, 0.02);
+        },
+        fanfare: () => {
+            const n = [659.25, 783.99, 987.77, 1318.51];
+            n.forEach((f, i) => tone({ f, d: i === 3 ? 0.42 : 0.11, v: 0.09, at: i * 0.09 }));
+            tone({ f: 329.63, d: 0.6, v: 0.05, type: 'triangle', at: 0.27 });
+        },
+        error:   () => {
+            tone({ f: 240, to: 110, d: 0.2, v: 0.1 });
+            tone({ f: 170, to: 70, d: 0.26, v: 0.08, at: 0.11 });
+        },
+        purr:    () => { tone({ f: 70, to: 110, d: 0.45, v: 0.09, type: 'triangle' }); noise(0.4, 0.015, 260); },
+        meow:    () => { tone({ f: 620, to: 900, d: 0.12, v: 0.07, type: 'sawtooth' }); tone({ f: 880, to: 520, d: 0.2, v: 0.06, type: 'sawtooth', at: 0.11 }); },
+        cart:    () => { noise(0.18, 0.06, 1800); tone({ f: 150, d: 0.08, v: 0.09, at: 0.14, type: 'square' }); },
+        knob:    () => tone({ f: 2400, d: 0.012, v: 0.03 }),
+    };
+
+    /* ── background chiptune (opt-in) ─────────────────────────────────────── */
+
+    const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+    const LEAD = [
+        72, 0, 76, 0, 79, 0, 76, 0, 74, 0, 77, 0, 81, 0, 79, 0,
+        72, 0, 76, 0, 79, 0, 84, 0, 83, 0, 79, 0, 76, 0, 0, 0,
+    ];
+    const BASS = [
+        48, 0, 0, 0, 55, 0, 0, 0, 53, 0, 0, 0, 57, 0, 0, 0,
+        48, 0, 0, 0, 55, 0, 0, 0, 53, 0, 0, 0, 52, 0, 0, 0,
+    ];
+    let bgmStep = 0;
+    let bgmNext = 0;
+    let bgmTimer = 0;
+
+    const bgmTick = () => {
+        if (!ac || !master || !cfg.bgm || !cfg.sfx) return;
+        const spb = 60 / 128 / 2;                       /* eighth notes at 128bpm */
+        while (bgmNext < ac.currentTime + 0.18) {
+            const at = Math.max(0, bgmNext - ac.currentTime);
+            const l = LEAD[bgmStep % LEAD.length];
+            const b = BASS[bgmStep % BASS.length];
+            if (l) tone({ f: NOTE(l), d: spb * 0.85, v: 0.028, type: 'square', at });
+            if (b) tone({ f: NOTE(b), d: spb * 1.6, v: 0.045, type: 'triangle', at });
+            if (bgmStep % 2 === 1) noise(0.02, 0.012, 6000, at);
+            bgmStep++;
+            bgmNext += spb;
+        }
+    };
+
+    const startBgm = () => {
+        if (!cfg.bgm || !audioReady() || !ac) return;
+        stopBgm();
+        bgmStep = 0;
+        bgmNext = ac.currentTime + 0.1;
+        bgmTimer = window.setInterval(bgmTick, 60);
+    };
+    const stopBgm = () => { if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = 0; } };
+
+    /* ══ SPRITES ═══════════════════════════════════════════════════════════ */
+
+    const CAT_IDLE: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222222112222112222220..',
+        '..0222wee22222222eew2220..',
+        '..0222eee22222222eee2220..',
+        '..0222222223pp3222222220..',
+        '..0202222333003332222020..',
+        '..0222233333333333322220..',
+        '...02222233333333222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+    const CAT_BLINK: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222222112222112222220..',
+        '..0222000222222220002220..',
+        '..0222222222222222222220..',
+        '..0222222223pp3222222220..',
+        '..0202222333003332222020..',
+        '..0222233333333333322220..',
+        '...02222233333333222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+    const CAT_HAPPY: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222222112222112222220..',
+        '..0222202222222222022220..',
+        '..0222020222222220202220..',
+        '..0222222223pp3222222220..',
+        '..0202222333pp3332222020..',
+        '..0222233333pp3333322220..',
+        '...02222233333333222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+    const CAT_SAD: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222211222222221122220..',
+        '..02222eew222222wee22220..',
+        '..02222eee222222eee22220..',
+        '..0222222223pp3222222220..',
+        '..0202222330330332222020..',
+        '..0222233333333333322220..',
+        '...02222233333333222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+    const CAT_HUNGRY: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222222112222112222220..',
+        '..0222wee22222222eew2220..',
+        '..0222eee22222222eee2220..',
+        '..0222eee223pp322eee2220..',
+        '..0202222333pp3332222020..',
+        '..0222233333pp3333322220..',
+        '...02222233333333222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+    const CAT_MUNCH: string[] = [
+        '.....00............00.....',
+        '....0220..........0220....',
+        '....02p20........02p20....',
+        '...02pp200000000002pp20...',
+        '...02222222222222222220...',
+        '...02222211222211222220...',
+        '..0222222112222112222220..',
+        '..0222000222222220002220..',
+        '..0222222222222222222220..',
+        '..0222222223pp3222222220..',
+        '..0202222200000022222020..',
+        '..02222330pppppp03322220..',
+        '...02222230000003222220...',
+        '...00002222222222220000...',
+        '....022223333333322220....',
+        '...01222333333333322210...',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02222333333333322220220',
+        '...01222333333333322210220',
+        '...02203330333303330222220',
+        '...0000000000000000000000.',
+    ];
+
+    const SPR_POOP = [
+        '....00....', '...0110...', '..011110..', '.01122110.', '.01222210.',
+        '0112222110', '0122222210', '0111111110', '.00000000.',
+    ];
+    const SPR_FILE = ['.0000.', '.03000', '.03330', '.03330', '.03330', '.03330', '.00000'];
+    const SPR_HEART = ['.00.00.', '0330330', '0333330', '.03330.', '..030..', '...0...'];
+    const SPR_STAR = ['..0..', '.030.', '03330', '.030.', '..0..'];
+    const SPR_ZZZ = ['00000', '...0.', '..0..', '.0...', '00000'];
+    const SPR_BOWL = ['.000000000000.', '.033333333330.', '.001111111100.', '..0111111110..', '...00000000...'];
+
+    type Pal = Record<string, string | null>;
+
+    const SCREENS: Record<Screen, [string, string, string, string]> = {
+        green:  ['#081820', '#346856', '#88c070', '#e0f8d0'],
+        pocket: ['#0f0f10', '#4c4c48', '#9c9c92', '#dcdcd0'],
+        aqua:   ['#04202b', '#0d5f79', '#2eaec9', '#c2f4ff'],
+        candy:  ['#2a0824', '#7d2f5d', '#dc74a2', '#ffe1ef'],
+    };
+
+    let S: [string, string, string, string] = SCREENS.green;
+    let palCat: Pal = {};
+    let palPoop: Pal = {};
+    let palUi: Pal = {};
+    let palHeart: Pal = {};
+
+    const buildPalettes = () => {
+        S = SCREENS[cfg.screen] || SCREENS.green;
+        const [s0, s1, s2, s3] = S;
+        if (cfg.color) {
+            palCat = { '.': null, '0': '#2a1000', '1': '#c4560a', '2': '#ff9d3c', '3': '#ffe6c4', p: '#ff6f9c', e: '#140600', w: '#ffffff' };
+            palPoop = { '.': null, '0': '#241203', '1': '#6b3a1a', '2': '#a3641f' };
+            palHeart = { '.': null, '0': '#8c1440', '3': '#ff6f9c' };
+        } else {
+            palCat = { '.': null, '0': s0, '1': s1, '2': s2, '3': s3, p: s1, e: s0, w: s3 };
+            palPoop = { '.': null, '0': s0, '1': s1, '2': s2 };
+            palHeart = { '.': null, '0': s0, '3': s2 };
+        }
+        palUi = { '.': null, '0': s0, '1': s1, '2': s2, '3': s3 };
+    };
+
+    /* draw a char-grid sprite, batching horizontal runs of one colour */
+    const blit = (rows: string[], x: number, y: number, scale: number, pal: Pal) => {
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            let c = 0;
+            while (c < row.length) {
+                const ch = row[c];
+                let run = 1;
+                while (c + run < row.length && row[c + run] === ch) run++;
+                const col = pal[ch];
+                if (col) {
+                    ctx.fillStyle = col;
+                    ctx.fillRect(x + c * scale, y + r * scale, run * scale, scale);
+                }
+                c += run;
+            }
+        }
+    };
+
+    /* ══ SCENE ═════════════════════════════════════════════════════════════ */
+
+    const VW = 160, VH = 144;
+    const FLOOR = 98;
+    const CAT_SC = 3;                       /* the cat is the hero: 78 x 66 px */
+    const CAT_W = 26 * CAT_SC, CAT_H = 22 * CAT_SC;
+    const CAT_X = (VW - CAT_W) >> 1;
+    const CAT_Y = FLOOR - CAT_H;
+    const MOUTH_X = CAT_X + CAT_W / 2, MOUTH_Y = CAT_Y + 10 * CAT_SC;
+
+    type Mood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad' | 'sleep' | 'pet' | 'hungry';
+
+    interface Particle {
+        kind: 'heart' | 'star' | 'zzz' | 'file' | 'poop';
+        x: number; y: number; vx: number; vy: number; life: number; max: number;
+    }
+
+    let mood: Mood = 'idle';
+    let frame = 0;
+    let blinkUntil = 0;
+    let nextBlink = 60;
+    let shake = 0;
+    let hunger = 4;
+    let lastPoke = Date.now();
+    const parts: Particle[] = [];
+    const poops: { x: number; y: number; vy: number; landed: boolean }[] = [];
+
+    const spawn = (p: Particle) => { parts.push(p); if (parts.length > 40) parts.shift(); };
+
+    const hearts = (n: number) => {
+        for (let i = 0; i < n; i++) {
+            spawn({
+                kind: 'heart', x: MOUTH_X - 12 + Math.random() * 24, y: CAT_Y + 6,
+                vx: (Math.random() - 0.5) * 0.4, vy: -0.55 - Math.random() * 0.25,
+                life: 0, max: 42 + i * 6,
+            });
+        }
+    };
+    const sparkles = (n: number) => {
+        for (let i = 0; i < n; i++) {
+            spawn({
+                kind: 'star', x: CAT_X + Math.random() * CAT_W, y: CAT_Y + Math.random() * CAT_H,
+                vx: 0, vy: -0.2, life: 0, max: 26,
+            });
+        }
+    };
+
+    const catFrame = (): string[] => {
+        switch (mood) {
+            case 'munch': return (frame >> 2) % 2 ? CAT_MUNCH : CAT_IDLE;
+            case 'squat': return CAT_BLINK;
+            case 'happy': return CAT_HAPPY;
+            case 'pet':   return CAT_HAPPY;
+            case 'sad':   return CAT_SAD;
+            case 'sleep': return CAT_BLINK;
+            case 'hungry': return CAT_HUNGRY;
+            case 'sniff': return CAT_HUNGRY;
+            default:      return frame < blinkUntil ? CAT_BLINK : CAT_IDLE;
+        }
+    };
+
+    const drawScene = () => {
+        const [s0, s1, s2, s3] = S;
+
+        ctx.fillStyle = s3;
+        ctx.fillRect(0, 0, VW, VH);
+
+        /* wall texture — a fixed sparse dither so it never crawls */
+        ctx.fillStyle = s2;
+        for (let y = 14; y < FLOOR; y += 8) {
+            for (let x = ((y / 8) % 2) * 4 + 2; x < VW; x += 8) ctx.fillRect(x, y, 1, 1);
+        }
+
+        /* floor: a light board with a hard top edge, not a heavy slab */
+        ctx.fillStyle = s2;
+        ctx.fillRect(0, FLOOR, VW, VH - FLOOR);
+        ctx.fillStyle = s0;
+        ctx.fillRect(0, FLOOR, VW, 1);
+        ctx.fillStyle = s1;
+        for (let y = FLOOR + 4; y < VH; y += 5) {
+            for (let x = ((y / 5) | 0) % 2 ? 3 : 0; x < VW; x += 6) ctx.fillRect(x, y, 3, 1);
+        }
+
+        /* contact shadow so the cat sits on the floor instead of hovering */
+        ctx.fillStyle = s1;
+        ctx.fillRect(CAT_X + 8, FLOOR - 2, CAT_W - 16, 2);
+        ctx.fillRect(CAT_X + 3, FLOOR - 1, CAT_W - 6, 1);
+
+        /* food bowl, left of the cat */
+        blit(SPR_BOWL, 6, FLOOR - 10, 2, palUi);
+
+        /* landed poops */
+        for (const p of poops) blit(SPR_POOP, p.x | 0, p.y | 0, 2, palPoop);
+
+        /* the cat */
+        const bob = mood === 'sleep' ? ((frame >> 4) % 2)
+            : mood === 'happy' ? (((frame >> 1) % 2) * -2)
+            : ((frame >> 3) % 2);
+        const sx = shake > 0 ? (frame % 2 ? -1 : 1) : 0;
+        blit(catFrame(), CAT_X + sx, CAT_Y + bob, CAT_SC, palCat);
+
+        /* particles */
+        for (const p of parts) {
+            const x = p.x | 0, y = p.y | 0;
+            if (p.kind === 'heart') blit(SPR_HEART, x, y, 1, palHeart);
+            else if (p.kind === 'star') blit(SPR_STAR, x, y, 1, palUi);
+            else if (p.kind === 'file') blit(SPR_FILE, x, y, 1, palUi);
+            else if (p.kind === 'zzz') blit(SPR_ZZZ, x, y, 1, palUi);
+        }
+    };
+
+    const stepScene = () => {
+        frame++;
+        if (shake > 0) shake--;
+
+        if (mood === 'idle' && frame > nextBlink) {
+            blinkUntil = frame + 5;
+            nextBlink = frame + 70 + ((Math.random() * 90) | 0);
+        }
+        if (mood === 'sleep' && frame % 40 === 0) {
+            spawn({ kind: 'zzz', x: MOUTH_X + 16, y: CAT_Y + 12, vx: 0.22, vy: -0.3, life: 0, max: 60 });
+        }
+        if (mood === 'munch' && frame % 10 === 0) sfx.munch();
+        if (mood === 'happy' && frame % 12 === 0) sparkles(1);
+
+        for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
+            p.x += p.vx; p.y += p.vy; p.life++;
+            if (p.kind === 'file') {
+                /* home in on the mouth */
+                const dx = MOUTH_X - p.x, dy = MOUTH_Y - p.y;
+                const d = Math.hypot(dx, dy) || 1;
+                p.x += dx / d * 1.6; p.y += dy / d * 1.6;
+                if (d < 5) { parts.splice(i, 1); sfx.gulp(); continue; }
+            }
+            if (p.life > p.max) parts.splice(i, 1);
+        }
+
+        for (const p of poops) {
+            if (p.landed) continue;
+            p.vy += 0.45;
+            p.y += p.vy;
+            if (p.y >= FLOOR - 18) { p.y = FLOOR - 18; p.landed = true; sfx.plop(); shake = 6; }
+        }
+    };
+
+    /* ══ VIEWS ═════════════════════════════════════════════════════════════ */
+
+    type ViewName = 'boot' | 'home' | 'menu' | 'log' | 'info';
+    let view: ViewName = 'boot';
+
+    const setView = (v: ViewName) => {
+        view = v;
+        for (const k in views) {
+            const on = k === v;
+            views[k].classList.toggle('is-active', on);
+            views[k].setAttribute('aria-hidden', on ? 'false' : 'true');
+        }
+        if (v === 'menu') renderMenu();
+        if (v === 'log') { renderLog(); void fetchHistory(); }
+    };
+
+    /* The cat's speech bubble and the system toast share the top of the screen,
+       so only one of them is ever on stage. */
+    let sayTimer = 0;
+    let toastTimer = 0;
+
+    const hush = () => bubble.classList.remove('is-open');
+
+    const say = (msg: string, ttl = 2600) => {
+        scrToast.classList.remove('is-open');
+        bubbleText.textContent = msg;
+        bubble.classList.add('is-open');
+        clearTimeout(sayTimer);
+        if (ttl > 0) sayTimer = window.setTimeout(() => bubble.classList.remove('is-open'), ttl);
+    };
+
+    const toast = (msg: string) => {
+        hush();
+        scrToast.textContent = msg;
+        scrToast.classList.add('is-open');
+        srStatus.textContent = msg;
+        clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => scrToast.classList.remove('is-open'), 2400);
+    };
+
+    let osdTimer = 0;
+    const showOsd = (msg: string) => {
+        osdText.textContent = msg;
+        osd.classList.add('is-open');
+        clearTimeout(osdTimer);
+        osdTimer = window.setTimeout(() => osd.classList.remove('is-open'), 900);
+    };
+
+    const setHunger = (n: number) => {
+        hunger = clamp(n, 0, 4);
+        hudHearts.textContent = '[' + '#'.repeat(hunger) + '-'.repeat(4 - hunger) + ']';
+    };
+
+    const setState = (label: string) => { hudState.textContent = label; };
+
+    const setMood = (m: Mood) => {
+        mood = m;
+        setState(m.toUpperCase());
+        /* a timer left over from before shutdown must not relight the LED */
+        if (!powered) return;
+        powerLed.dataset.state =
+            m === 'munch' || m === 'squat' ? 'busy'
+            : m === 'hungry' || m === 'sad' ? 'low' : 'on';
+    };
+
+    const restMood = (): Mood =>
+        urlInput.value.trim() ? 'sniff' : hunger <= 1 ? 'hungry' : 'idle';
+
+    /* ── settings menu ────────────────────────────────────────────────────── */
+
+    interface Row {
+        key: string;
+        val: () => string;
+        step?: (dir: number) => void;
+        act?: () => void;
+    }
+
+    const cycle = <T>(list: T[], cur: T, dir: number): T => {
+        const i = list.indexOf(cur);
+        return list[(i + dir + list.length) % list.length];
+    };
+
+    const bar = (n: number) => '|'.repeat(n) + '.'.repeat(10 - n);
+
+    const ROWS: Row[] = [
+        { key: 'DIET', val: () => cfg.diet.toUpperCase(), step: d => { cfg.diet = cycle<Diet>(['video', 'audio'], cfg.diet, d); } },
+        { key: 'SIZE', val: () => cfg.quality === 'max' ? 'MAX' : cfg.quality + 'P', step: d => { cfg.quality = cycle(['1080', '1440', '2160', 'max'], cfg.quality, d); } },
+        { key: 'CODEC', val: () => cfg.codec.toUpperCase(), step: d => { cfg.codec = cycle(['h264', 'av1', 'vp9'], cfg.codec, d); } },
+        { key: 'SILENT', val: () => cfg.silent ? 'ON' : 'OFF', step: () => { cfg.silent = !cfg.silent; } },
+        { key: 'SFX', val: () => cfg.sfx ? 'ON' : 'OFF', step: () => { cfg.sfx = !cfg.sfx; if (!cfg.sfx) stopBgm(); else startBgm(); } },
+        { key: 'BGM', val: () => cfg.bgm ? 'ON' : 'OFF', step: () => { cfg.bgm = !cfg.bgm; if (cfg.bgm) startBgm(); else stopBgm(); } },
+        { key: 'VOL', val: () => bar(cfg.vol), step: d => { cfg.vol = clamp(cfg.vol + d, 0, 10); setVolume(); } },
+        { key: 'LIGHT', val: () => bar(cfg.contrast), step: d => { cfg.contrast = clamp(cfg.contrast + d, 0, 10); applyContrast(); } },
+        { key: 'SHELL', val: () => cfg.shell.toUpperCase(), step: d => { cfg.shell = cycle<Shell>(['dmg', 'grape', 'pika', 'noir'], cfg.shell, d); applyShell(); } },
+        { key: 'SCREEN', val: () => cfg.screen.toUpperCase(), step: d => { cfg.screen = cycle<Screen>(['green', 'pocket', 'aqua', 'candy'], cfg.screen, d); applyScreen(); } },
+        { key: 'FUR', val: () => cfg.color ? 'COLOR' : 'MONO', step: () => { cfg.color = !cfg.color; buildPalettes(); } },
+        { key: 'ABOUT', val: () => '>', act: () => setView('info') },
+    ];
+
+    const PAGE = 8;
+    let menuSel = 0;
+    let menuTop = 0;
+
+    const renderMenu = () => {
+        menuTop = clamp(menuTop, Math.max(0, menuSel - PAGE + 1), menuSel);
+        menuList.textContent = '';
+        for (let i = menuTop; i < Math.min(ROWS.length, menuTop + PAGE); i++) {
+            const row = ROWS[i];
+            const li = document.createElement('li');
+            li.className = i === menuSel ? 'is-sel' : '';
+            const k = document.createElement('span');
+            k.className = 'menu-key';
+            k.textContent = row.key;
+            const v = document.createElement('span');
+            v.className = 'menu-val';
+            v.textContent = row.val();
+            li.append(k, v);
+            li.addEventListener('click', () => { menuSel = i; sfx.move(); renderMenu(); });
+            menuList.appendChild(li);
+        }
+    };
+
+    /* ── history log ──────────────────────────────────────────────────────── */
+
     interface HistoryItem {
         id: string; url: string; format: string; filename: string;
         status: string; created_at: string; file_size: number;
     }
-    type CatMood = 'idle' | 'sniff' | 'munch' | 'squat' | 'happy' | 'sad' | 'sleep' | 'pet' | 'hungry';
 
-    const escapeHtml = (s: string): string => {
-        const d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
-    };
+    let history: HistoryItem[] = [];
+    let logSel = 0;
+    let logTop = 0;
 
-    // --- Chiptune SFX (Web Audio, lazy-init on first gesture) --- //
-    let audioCtx: AudioContext | null = null;
-    let sfxMuted = localStorage.getItem('allkitty.muted') === '1';
-
-    const ensureCtx = (): AudioContext | null => {
-        if (sfxMuted) return null;
-        if (!audioCtx) {
-            const Ctor: typeof AudioContext | undefined =
-                (window as any).AudioContext || (window as any).webkitAudioContext;
-            if (!Ctor) return null;
-            audioCtx = new Ctor();
+    const renderLog = () => {
+        logList.textContent = '';
+        if (!history.length) {
+            const li = document.createElement('li');
+            li.className = 'log-empty';
+            li.textContent = 'THE LITTER BOX IS CLEAN.';
+            logList.appendChild(li);
+            return;
         }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        return audioCtx;
-    };
-
-    interface BlipOpts {
-        freq: number; dur?: number; type?: OscillatorType;
-        slideTo?: number; vol?: number; delay?: number;
-    }
-    const blip = ({ freq, dur = 0.08, type = 'square', slideTo, vol = 0.08, delay = 0 }: BlipOpts) => {
-        const ctx = ensureCtx();
-        if (!ctx) return;
-        const t0 = ctx.currentTime + delay;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, t0);
-        if (slideTo !== undefined) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
-        gain.gain.setValueAtTime(0, t0);
-        gain.gain.linearRampToValueAtTime(vol, t0 + 0.005);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t0);
-        osc.stop(t0 + dur + 0.02);
-    };
-
-    const sfx = {
-        click:  () => blip({ freq: 880, dur: 0.05, vol: 0.06 }),
-        tick:   () => blip({ freq: 1200, dur: 0.025, vol: 0.04 }),
-        paste:  () => { blip({ freq: 440, slideTo: 880, dur: 0.12, vol: 0.07 }); },
-        munch:  () => blip({ freq: 180, slideTo: 120, dur: 0.06, type: 'sawtooth', vol: 0.05 }),
-        plop:   () => {
-            blip({ freq: 700, slideTo: 90,  dur: 0.32, type: 'sine', vol: 0.12 });
-            blip({ freq: 200, slideTo: 60,  dur: 0.18, type: 'square', vol: 0.06, delay: 0.05 });
-        },
-        happy:  () => {
-            blip({ freq: 660, dur: 0.08, vol: 0.08 });
-            blip({ freq: 880, dur: 0.08, vol: 0.08, delay: 0.1 });
-            blip({ freq: 1320, dur: 0.14, vol: 0.08, delay: 0.2 });
-        },
-        error:  () => {
-            blip({ freq: 220, slideTo: 110, dur: 0.18, type: 'square', vol: 0.09 });
-            blip({ freq: 165, slideTo: 80,  dur: 0.22, type: 'square', vol: 0.07, delay: 0.1 });
-        },
-        purr:   () => blip({ freq: 80, slideTo: 120, dur: 0.4, type: 'triangle', vol: 0.08 }),
-    };
-
-    const toggleMute = () => {
-        sfxMuted = !sfxMuted;
-        localStorage.setItem('allkitty.muted', sfxMuted ? '1' : '0');
-        if (!sfxMuted) sfx.click();
-    };
-
-    // --- State --- //
-    const state: State = {
-        downloadMode: 'video', quality: '1080', codec: 'h264', audioFormat: 'mp3', mute: false
-    };
-    let toastQueue: ToastJob[] = [];
-    let activeToasts = 0;
-    let pollIntervalId: any = null;
-    let blinkIntervalId: any = null;
-    let frameTickId: any = null;
-    let progressTickId: any = null;
-
-    // --- DOM --- //
-    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-    const videoUrlInput = $<HTMLInputElement>('videoUrl');
-    const saveBtn = $<HTMLButtonElement>('saveBtn');
-    const cancelBtn = $<HTMLButtonElement>('cancelBtn');
-    const toastContainer = $<HTMLDivElement>('toastContainer');
-    const screen = $<HTMLDivElement>('screen');
-    const catCanvas = $<HTMLDivElement>('catCanvas');
-    const poopStage = $<HTMLDivElement>('poopStage');
-    const thought = $<HTMLDivElement>('thought');
-    const thoughtBox = $<HTMLDivElement>('thoughtBox');
-    const lcdState = $<HTMLSpanElement>('lcdState');
-    const lcdHunger = $<HTMLSpanElement>('lcdHunger');
-    const lcdBarFill = $<HTMLDivElement>('lcdBarFill');
-    const powerLed = $<HTMLSpanElement>('powerLed');
-
-    const historyBtn = $<HTMLButtonElement>('historyBtn');
-    const historyPanel = $<HTMLDivElement>('historyPanel');
-    const historyList = $<HTMLDivElement>('historyList');
-    const closeHistory = $<HTMLButtonElement>('closeHistory');
-    const settingsBtn = $<HTMLButtonElement>('settingsBtn');
-    const infoBtn = $<HTMLButtonElement>('infoBtn');
-    const settingsPanel = $<HTMLDivElement>('settingsPanel');
-    const infoPanel = $<HTMLDivElement>('infoPanel');
-    const closeSettings = $<HTMLButtonElement>('closeSettings');
-    const closeInfo = $<HTMLButtonElement>('closeInfo');
-    const muteVideoCheckbox = $<HTMLInputElement>('muteVideo');
-    const sfxToggleCheckbox = $<HTMLInputElement>('sfxToggle');
-    const segmentedControls = document.querySelectorAll('.segmented-control');
-
-    // --- Pixel cat sprites — orange tabby ---
-    // L = light orange fill, M = darker orange (stripes/shadow), N = cream belly
-    const PAL: Record<string, string> = {
-        '.': 'transparent',
-        'B': '#2a0d00',   // dark outline
-        'L': '#ff9a3c',   // main orange
-        'M': '#c44a08',   // tabby stripe / shadow
-        'N': '#ffe0b8',   // cream belly / muzzle
-        'P': '#ff7aa8',   // pink nose
-        'E': '#1a0500',   // eye
-        'W': '#ffffff',   // eye highlight
-        'C': '#ff8fb8',   // pink cheek
-        'T': '#2a0d00',   // closed eye line
-        'Y': '#fff2b0',   // teeth
-        'Z': '#ff3d6e',   // tongue
-    };
-
-    // 24 × 20 sprite. Each row is exactly 24 chars.
-    // Tabby markings: forehead M, back stripes, cream belly (N), white muzzle.
-    const idleFrame = [
-        '........................',
-        '....BB............BB....',
-        '...BLLB..........BLLB...',
-        '..BLLLBBBBBBBBBBBBLLLB..',
-        '..BLLMLLLLLLLLLLLLMLLB..',
-        '.BLLMMLLLLLLLLLLLLMMLLB.',
-        '.BLLLLLLMMLLLLMMLLLLLLB.',
-        '.BLLWEBLLLLLLLLLBEWLLLB.',
-        '.BLLEEBLLLLPPLLLLBEELLB.',
-        '.BLLLLLLNCPPCNLLLLLLLLB.',
-        '.BLLLLNNNNNNNNNNNNLLLLB.',
-        '.BLLLMLLLNNNNNNLLLMLLLB.',
-        '..BLMMLLNNNNNNNNNNLMMLB.',
-        '...BBLLNNNNNNNNNNNNLBB..',
-        '.....BNNNNNNNNNNNNB.....',
-        '.....BLLBNNNNNNBLLB..BB.',
-        '.....BLLBNNNNNNBLLBBBLB.',
-        '.....BLLBNNNNNNBLLBLLB..',
-        '.....BBBBBBBBBBBBBBBB...',
-        '........................',
-    ];
-
-    const blinkFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
-        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
-        return r;
-    });
-
-    const sniffFrame = idleFrame.map((r, i) => {
-        if (i === 9) return '.BLLLLLLLCLZZLCLLLLLLLB.';
-        return r;
-    });
-
-    const munchOpen = idleFrame.map((r, i) => {
-        if (i === 9)  return '.BLLLLLLBBYYYYBBLLLLLLB.';
-        if (i === 10) return '.BLLLLLBYZZZZZZYBLLLLLB.';
-        if (i === 11) return '.BLLLLLBYYZZZZYYBLLLLLB.';
-        if (i === 12) return '..BLLLLBBYYYYYYBBLLLLB..';
-        return r;
-    });
-    const munchClosed = idleFrame.map((r, i) => {
-        if (i === 9)  return '.BLLLLLLLCLPPLCLLLLLLLB.';
-        if (i === 10) return '.BLLLLLLLLZZZZLLLLLLLLB.';
-        return r;
-    });
-
-    const squatFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
-        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
-        return r;
-    });
-
-    const happyFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
-        if (i === 8) return '.BLBBLBLLLLPPLLLLBLLBBB.';
-        return r;
-    });
-
-    const sadFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLLLBLLLLLLLLLBLLLLLB.';
-        if (i === 8) return '.BLLEEBLLLLPPLLLLBEELLB.';
-        if (i === 9) return '.BLLEEBLLLLCCLLLLBEELLB.';
-        return r;
-    });
-
-    // Sleeping: closed eyes, slight curl
-    const sleepFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLTTBLLLLLLLLLBTTLLLB.';
-        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
-        return r;
-    });
-
-    // Pet/love: ^^ squint eyes + tongue blep
-    const petFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BBBLLBLLLLLLLLLBLLBBBB.';
-        if (i === 8) return '.BLLLLBLLLLPPLLLLBLLLLB.';
-        if (i === 9) return '.BLLLLLLLNCZZCNLLLLLLLB.';
-        return r;
-    });
-
-    // Hungry: sad pleading eyes + tongue droop
-    const hungryFrame = idleFrame.map((r, i) => {
-        if (i === 7) return '.BLLEEBLLLLLLLLLBEELLLB.';
-        if (i === 8) return '.BLLEWBLLLLPPLLLLBWELLB.';
-        if (i === 9) return '.BLLLLLLLLZZZZLLLLLLLLB.';
-        if (i === 10) return '.BLLLLNNNNZZZZNNNNLLLLB.';
-        return r;
-    });
-
-    // Poop sprite — 12 × 10
-    const poopSprite = [
-        '....BBBB....',
-        '...BPPPPB...',
-        '..BPHHHPPB..',
-        '.BPHHHHHPPB.',
-        'BPHHHKHHHHPB',
-        'BPPHHKHHHPPB',
-        'BHPPHHHPPHHB',
-        'BPPHPPPHPPHB',
-        '.BBPPPPPPBB.',
-        '..BBBBBBBB..',
-    ];
-    const POOP_PAL: Record<string, string> = {
-        '.': 'transparent',
-        'B': '#1c2a16',
-        'P': '#6b3a1a',
-        'H': '#a35a26',
-        'K': '#ffe14a',
-    };
-
-    const renderSprite = (host: HTMLElement, rows: string[], palette: Record<string,string>) => {
-        while (host.firstChild) host.removeChild(host.firstChild);
-        const frag = document.createDocumentFragment();
-        for (const row of rows) {
-            for (const ch of row) {
-                const cell = document.createElement('span');
-                cell.className = 'px';
-                const c = palette[ch] || 'transparent';
-                if (c !== 'transparent') cell.style.background = c;
-                frag.appendChild(cell);
-            }
-        }
-        host.appendChild(frag);
-    };
-
-    // --- Cat state machine ---
-    let currentMood: CatMood = 'idle';
-    let munchToggle = false;
-    let lastInteraction = Date.now();
-    let hungerLevel = 4;
-    let idleBehaviorId: any = null;
-    let zzzId: any = null;
-
-    // --- Pet thought pools ---
-    const idleThoughts = [
-        'paste a link, hooman',
-        'mrow?',
-        'i see you...',
-        'nyaaa',
-        '*licks paw*',
-        'whiskers twitch',
-        'blep',
-        '*tail flick*',
-        '*purrs softly*',
-        'staring intensifies',
-        'bring me a video',
-        '*ear flick*',
-        'nap?',
-        '*kneads air*',
-        'feed me a link!',
-        'attention pls',
-        'mrrp',
-        'hooman... ?',
-        '*chirps*',
-        'beep meow',
-        '*head tilt*',
-        'i\'m a good cat',
-    ];
-    const sniffThoughts = [
-        'sniff sniff...',
-        'mmm a link',
-        'smells linkable',
-        'is it tasty?',
-        '*twitch*',
-        'lemme inspect this',
-    ];
-    const hungryThoughts = [
-        'feed me!!',
-        'starvinggg',
-        '*meows angrily*',
-        'i need a link to eat',
-        'hooman are you ok',
-        '*paws at screen*',
-        'food food food',
-    ];
-    const happyThoughts = [
-        'mwah!',
-        '*purrs loudly*',
-        'good hooman',
-        'love this',
-        '<3',
-        '*wiggles*',
-    ];
-    const petThoughts = [
-        '*purr*',
-        'mreoow~',
-        'more please',
-        'aaa <3',
-        '*content*',
-        'best hooman',
-        '*nuzzles*',
-    ];
-    const sleepThoughts = [
-        'zzz...',
-        '*dreaming*',
-        'mrrr...',
-        '*twitches paw*',
-    ];
-    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-
-    const spawnHearts = (n: number) => {
-        for (let i = 0; i < n; i++) {
-            setTimeout(() => {
-                const heart = document.createElement('div');
-                heart.className = 'heart';
-                heart.textContent = Math.random() < 0.5 ? '♡' : '♥';
-                const offset = -22 + Math.random() * 44;
-                heart.style.left = `calc(50% + ${offset}px)`;
-                poopStage.appendChild(heart);
-                setTimeout(() => heart.remove(), 1400);
-            }, i * 130);
+        logSel = clamp(logSel, 0, history.length - 1);
+        logTop = clamp(logTop, Math.max(0, logSel - 5), logSel);
+        for (let i = logTop; i < Math.min(history.length, logTop + 6); i++) {
+            const it = history[i];
+            const li = document.createElement('li');
+            li.className = i === logSel ? 'is-sel' : '';
+            const top = document.createElement('div');
+            top.className = 'log-top';
+            const when = document.createElement('span');
+            const d = new Date(it.created_at);
+            when.textContent = isNaN(d.getTime()) ? '--' : d.toLocaleDateString();
+            const st = document.createElement('span');
+            st.textContent = (it.status || '').toUpperCase();
+            top.append(when, st);
+            const name = document.createElement('div');
+            name.className = 'log-name';
+            name.textContent = it.filename || it.url || '(unknown)';
+            li.append(top, name);
+            li.addEventListener('click', () => { logSel = i; sfx.move(); renderLog(); });
+            logList.appendChild(li);
         }
     };
 
-    const startZzz = () => {
-        if (zzzId) return;
-        zzzId = setInterval(() => {
-            const z = document.createElement('div');
-            z.className = 'zzz';
-            z.textContent = ['z', 'Z', 'zZ'][Math.floor(Math.random() * 3)];
-            z.style.left = `${52 + Math.random() * 8}%`;
-            poopStage.appendChild(z);
-            setTimeout(() => z.remove(), 2400);
-        }, 1300);
-    };
-    const stopZzz = () => { if (zzzId) { clearInterval(zzzId); zzzId = null; } };
-
-    const setMood = (mood: CatMood) => {
-        currentMood = mood;
-        screen.dataset.state = mood;
-        if (frameTickId) { clearInterval(frameTickId); frameTickId = null; }
-        if (blinkIntervalId) { clearInterval(blinkIntervalId); blinkIntervalId = null; }
-        if (mood !== 'sleep') stopZzz();
-
-        switch (mood) {
-            case 'idle':
-                renderSprite(catCanvas, idleFrame, PAL);
-                lcdState.textContent = '> idle';
-                powerLed.dataset.state = 'idle';
-                blinkIntervalId = setInterval(() => {
-                    renderSprite(catCanvas, blinkFrame, PAL);
-                    setTimeout(() => {
-                        if (currentMood === 'idle') renderSprite(catCanvas, idleFrame, PAL);
-                    }, 140);
-                }, 3200 + Math.random() * 1500);
-                break;
-            case 'sniff':
-                renderSprite(catCanvas, sniffFrame, PAL);
-                lcdState.textContent = '> sniff..';
-                powerLed.dataset.state = 'idle';
-                break;
-            case 'munch':
-                lcdState.textContent = '> munch';
-                powerLed.dataset.state = 'busy';
-                frameTickId = setInterval(() => {
-                    munchToggle = !munchToggle;
-                    renderSprite(catCanvas, munchToggle ? munchOpen : munchClosed, PAL);
-                    sfx.munch();
-                }, 220);
-                break;
-            case 'squat':
-                renderSprite(catCanvas, squatFrame, PAL);
-                lcdState.textContent = '> squat!';
-                powerLed.dataset.state = 'alert';
-                break;
-            case 'happy':
-                renderSprite(catCanvas, happyFrame, PAL);
-                lcdState.textContent = '> happy';
-                powerLed.dataset.state = 'happy';
-                break;
-            case 'sad':
-                renderSprite(catCanvas, sadFrame, PAL);
-                lcdState.textContent = '> sad';
-                powerLed.dataset.state = 'alert';
-                break;
-            case 'sleep':
-                renderSprite(catCanvas, sleepFrame, PAL);
-                lcdState.textContent = '> zzz...';
-                powerLed.dataset.state = 'idle';
-                startZzz();
-                break;
-            case 'pet':
-                renderSprite(catCanvas, petFrame, PAL);
-                lcdState.textContent = '> purr~';
-                powerLed.dataset.state = 'happy';
-                break;
-            case 'hungry':
-                renderSprite(catCanvas, hungryFrame, PAL);
-                lcdState.textContent = '> hungry';
-                powerLed.dataset.state = 'alert';
-                break;
-        }
-    };
-
-    const showThought = (msg: string, ttl = 0) => {
-        thoughtBox.textContent = msg;
-        thought.classList.add('show');
-        if (ttl > 0) setTimeout(() => thought.classList.remove('show'), ttl);
-    };
-    const hideThought = () => thought.classList.remove('show');
-
-    const setProgressBar = (pct: number) => {
-        lcdBarFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-    };
-
-    const setHunger = (hearts: number) => {
-        const clamped = Math.max(0, Math.min(4, hearts));
-        hungerLevel = clamped;
-        const filled = '@'.repeat(clamped);
-        const empty = '.'.repeat(4 - filled.length);
-        lcdHunger.textContent = filled + empty;
-    };
-
-    const startProgressShimmer = () => {
-        if (progressTickId) return;
-        let p = 5; let dir = 1;
-        progressTickId = setInterval(() => {
-            p += dir * (Math.random() * 6 + 2);
-            if (p > 92) { p = 92; dir = -1; }
-            if (p < 8)  { p = 8;  dir = 1; }
-            setProgressBar(p);
-        }, 320);
-    };
-    const stopProgressShimmer = () => {
-        if (progressTickId) { clearInterval(progressTickId); progressTickId = null; }
-    };
-
-    // --- Poop drop ---
-    const dropPoop = (onLanded: () => void) => {
-        const node = document.createElement('div');
-        node.className = 'poop';
-        renderSprite(node, poopSprite, POOP_PAL);
-        // Anchor just behind the tail (right side of cat); small jitter only
-        const offset = 18 + Math.floor(Math.random() * 12);
-        node.style.left = `calc(50% + ${offset}px)`;
-        poopStage.appendChild(node);
-
-        setTimeout(onLanded, 700);
-        setTimeout(() => {
-            const all = poopStage.querySelectorAll('.poop');
-            if (all.length > 3) all[0].remove();
-        }, 1400);
-    };
-
-    // --- Panels --- //
-    const getKeyboardFocusableElements = (el: HTMLElement): HTMLElement[] =>
-        [...el.querySelectorAll('a[href], button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])')]
-            .filter(e => !e.hasAttribute('disabled') && e.getAttribute('aria-hidden') !== 'true') as HTMLElement[];
-
-    const trapFocus = (e: KeyboardEvent, panel: HTMLElement) => {
-        const f = getKeyboardFocusableElements(panel);
-        if (!f.length) return;
-        const first = f[0], last = f[f.length - 1];
-        if (e.key === 'Tab') {
-            if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
-            else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
-        }
-    };
-
-    let lastFocused: HTMLElement | null = null;
-
-    const openPanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
-        lastFocused = document.activeElement as HTMLElement;
-        panel.classList.add('open');
-        trigger.setAttribute('aria-expanded', 'true');
-        const c = panel.querySelector('.panel-container') as HTMLElement;
-        c.focus();
-        const handler = (e: KeyboardEvent) => trapFocus(e, c);
-        (panel as any)._focusTrap = handler;
-        panel.addEventListener('keydown', handler);
-        if (panel === historyPanel) fetchHistory();
-    };
-
-    const closePanel = (panel: HTMLElement, trigger: HTMLButtonElement) => {
-        panel.classList.remove('open');
-        trigger.setAttribute('aria-expanded', 'false');
-        if ((panel as any)._focusTrap) panel.removeEventListener('keydown', (panel as any)._focusTrap);
-        if (lastFocused) lastFocused.focus();
-    };
-
-    settingsBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(settingsPanel, settingsBtn); });
-    infoBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(infoPanel, infoBtn); });
-    historyBtn.addEventListener('click', e => { e.stopPropagation(); sfx.click(); openPanel(historyPanel, historyBtn); });
-    closeSettings.addEventListener('click', () => { sfx.tick(); closePanel(settingsPanel, settingsBtn); });
-    closeInfo.addEventListener('click', () => { sfx.tick(); closePanel(infoPanel, infoBtn); });
-    closeHistory.addEventListener('click', () => { sfx.tick(); closePanel(historyPanel, historyBtn); });
-
-    window.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            if (settingsPanel.classList.contains('open')) closePanel(settingsPanel, settingsBtn);
-            if (infoPanel.classList.contains('open')) closePanel(infoPanel, infoBtn);
-            if (historyPanel.classList.contains('open')) closePanel(historyPanel, historyBtn);
-        }
-    });
-
-    window.addEventListener('click', e => {
-        const t = e.target as HTMLElement;
-        const checkClose = (panel: HTMLElement, btn: HTMLButtonElement) => {
-            if (panel.classList.contains('open') && !panel.querySelector('.panel-container')?.contains(t)) closePanel(panel, btn);
-        };
-        checkClose(settingsPanel, settingsBtn);
-        checkClose(infoPanel, infoBtn);
-        checkClose(historyPanel, historyBtn);
-    });
-
-    segmentedControls.forEach(control => {
-        const key = (control as HTMLElement).dataset.state as keyof State;
-        const segments = control.querySelectorAll('.segment');
-        segments.forEach(seg => {
-            seg.addEventListener('click', () => {
-                segments.forEach(s => s.classList.remove('active'));
-                seg.classList.add('active');
-                sfx.tick();
-                const v = (seg as HTMLElement).dataset.value;
-                if (v !== undefined) (state as any)[key] = v;
-            });
-        });
-    });
-
-    muteVideoCheckbox.addEventListener('change', e => { state.mute = (e.target as HTMLInputElement).checked; sfx.tick(); });
-
-    // --- Toasts (DOM-built, no innerHTML) --- //
-    const buildIcon = (type: 'success' | 'error' | 'info'): SVGElement => {
-        const ns = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(ns, 'svg');
-        svg.setAttribute('class', 'toast-icon');
-        svg.setAttribute('viewBox', '0 0 24 24');
-        svg.setAttribute('fill', 'none');
-        svg.setAttribute('stroke', 'currentColor');
-        svg.setAttribute('stroke-width', '3');
-        svg.setAttribute('stroke-linecap', 'round');
-        svg.setAttribute('stroke-linejoin', 'round');
-        const make = (tag: string, attrs: Record<string,string>) => {
-            const el = document.createElementNS(ns, tag);
-            for (const k in attrs) el.setAttribute(k, attrs[k]);
-            return el;
-        };
-        if (type === 'success') {
-            svg.appendChild(make('polyline', { points: '20 6 9 17 4 12' }));
-        } else if (type === 'error') {
-            svg.appendChild(make('line', { x1: '18', y1: '6', x2: '6', y2: '18' }));
-            svg.appendChild(make('line', { x1: '6',  y1: '6', x2: '18', y2: '18' }));
-        } else {
-            svg.appendChild(make('circle', { cx: '12', cy: '12', r: '9' }));
-            svg.appendChild(make('line', { x1: '12', y1: '8', x2: '12', y2: '13' }));
-            svg.appendChild(make('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' }));
-        }
-        return svg;
-    };
-
-    const processToastQueue = () => {
-        if (toastQueue.length === 0 || activeToasts >= MAX_TOASTS) return;
-        const job = toastQueue.shift();
-        if (job) createToast(job.msg, job.type);
-    };
-
-    const createToast = (msg: string, type: 'success' | 'error' | 'info') => {
-        activeToasts++;
-        const t = document.createElement('div');
-        t.className = `toast ${type}`;
-        t.appendChild(buildIcon(type));
-        const span = document.createElement('span');
-        span.textContent = msg;
-        t.appendChild(span);
-        toastContainer.appendChild(t);
-        requestAnimationFrame(() => setTimeout(() => t.classList.add('show'), 10));
-        setTimeout(() => {
-            t.classList.remove('show');
-            setTimeout(() => { t.remove(); activeToasts--; processToastQueue(); }, TOAST_REMOVE_DELAY);
-        }, TOAST_DURATION);
-    };
-
-    const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
-        toastQueue.push({ msg, type });
-        processToastQueue();
-    };
-
-    // --- History --- //
     const fetchHistory = async () => {
         try {
-            const res = await fetch('/api/history');
+            const res = await fetch('/api/history?limit=20');
             const data = await res.json();
-            renderHistory(data);
-        } catch {
-            historyList.textContent = '';
-            const p = document.createElement('p');
-            p.className = 'small-text';
-            p.textContent = 'litter box jammed.';
-            historyList.appendChild(p);
-        }
+            history = Array.isArray(data) ? data : [];
+        } catch { history = []; }
+        renderLog();
     };
 
-    const renderHistory = (items: HistoryItem[]) => {
-        historyList.textContent = '';
-        if (items.length === 0) {
-            const p = document.createElement('p');
-            p.className = 'small-text';
-            p.textContent = 'no recent poops.';
-            historyList.appendChild(p);
-            return;
-        }
-        for (const item of items) {
-            const wrap = document.createElement('div');
-            wrap.className = 'history-item';
-            const top = document.createElement('div');
-            top.className = 'history-item-top';
-            const dateSpan = document.createElement('span');
-            dateSpan.textContent = new Date(item.created_at).toLocaleDateString();
-            const statusSpan = document.createElement('span');
-            statusSpan.textContent = item.status;
-            top.append(dateSpan, statusSpan);
-            const title = document.createElement('div');
-            title.className = 'history-item-title';
-            title.textContent = item.filename || item.url;
-            wrap.append(top, title);
-            historyList.appendChild(wrap);
-        }
+    /* ── theming ──────────────────────────────────────────────────────────── */
+
+    const applyShell = () => { document.body.dataset.shell = cfg.shell; };
+    const applyScreen = () => { document.body.dataset.screen = cfg.screen; buildPalettes(); };
+    const applyContrast = () => {
+        document.documentElement.style.setProperty('--contrast', String(0.75 + cfg.contrast * 0.07));
+        conKnob.setAttribute('aria-valuenow', String(cfg.contrast));
     };
 
-    // --- Download --- //
-    const pollJobStatus = (jobId: string) => {
-        pollIntervalId = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/queue/${jobId}`);
-                if (!res.ok) throw new Error('Job lost');
-                const job = await res.json();
-                if (job.state === 'completed') { stopPolling(); handleDownloadComplete(job.result); }
-                else if (job.state === 'failed') { stopPolling(); showToast(job.failedReason || 'download failed', 'error'); failUI(); }
-                else updateQueueProgress(job.state);
-            } catch {
-                stopPolling();
-                showToast('lost connection to job', 'error');
-                failUI();
-            }
-        }, POLL_INTERVAL);
+    /* ══ POWER ═════════════════════════════════════════════════════════════ */
+
+    let powered = false;
+    let bootTimer = 0;
+
+    const powerOn = () => {
+        if (powered) return;
+        powered = true;
+        document.body.dataset.power = 'on';
+        powerBtn.setAttribute('aria-checked', 'true');
+        powerLed.dataset.state = 'on';
+        lcdDark.classList.remove('is-collapsing');
+        setView('boot');
+        /* replay the logo drop on every power cycle */
+        const mark = $<HTMLDivElement>('bootMark');
+        mark.style.animation = 'none';
+        void mark.offsetHeight;
+        mark.style.animation = '';
+        audioReady();
+        sfx.boot();
+        srStatus.textContent = 'Console on.';
+        clearTimeout(bootTimer);
+        bootTimer = window.setTimeout(() => {
+            setView('home');
+            setMood(restMood());
+            say(pick(GREETING));
+            startBgm();
+        }, reduceMotion ? 200 : 1900);
     };
 
-    const stopPolling = () => { if (pollIntervalId) { clearInterval(pollIntervalId); pollIntervalId = null; } };
-
-    const updateQueueProgress = (s: string) => {
-        if (s === 'active') { lcdState.textContent = '> chewing..'; setHunger(2); }
-        else                { lcdState.textContent = '> in queue'; setHunger(3); }
+    const powerOff = () => {
+        if (!powered) return;
+        powered = false;
+        stopPolling();
+        stopBgm();
+        sfx.off();
+        document.body.dataset.power = 'off';
+        powerBtn.setAttribute('aria-checked', 'false');
+        powerLed.dataset.state = 'off';
+        lcdDark.classList.add('is-collapsing');
+        hush();
+        srStatus.textContent = 'Console off.';
+        clearTimeout(bootTimer);
     };
 
-    const handleDownloadComplete = (result: any) => {
-        stopProgressShimmer();
-        setProgressBar(100);
-        setMood('squat');
-        showThought('here it comes...', 1200);
+    const togglePower = () => (powered ? powerOff() : powerOn());
 
-        setTimeout(() => {
-            dropPoop(() => {
-                sfx.plop();
-                showToast('plop! download ready', 'success');
-                showThought('deposited!', 2500);
-                setMood('happy');
-                setHunger(4);
-                setTimeout(() => sfx.happy(), 300);
+    /* ══ CAT CHATTER ═══════════════════════════════════════════════════════ */
 
-                const a = document.createElement('a');
-                a.href = result.downloadUrl;
-                a.download = result.filename || 'allkitty_media';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+    const GREETING = ['PASTE A LINK, HOOMAN', 'MROW?', 'FEED ME', 'BEEP MEOW', 'I AM AWAKE'];
+    const IDLE_TALK = [
+        'MROW?', '*LICKS PAW*', 'BLEP', '*TAIL FLICK*', 'I SEE YOU...', 'NYAAA',
+        '*PURRS SOFTLY*', 'BRING ME A VIDEO', '*EAR FLICK*', 'NAP?', 'ATTENTION PLS',
+        '*KNEADS AIR*', 'HOOMAN... ?', '*CHIRPS*', '*HEAD TILT*', 'I AM A GOOD CAT',
+    ];
+    const SNIFF_TALK = ['SNIFF SNIFF...', 'MMM A LINK', 'SMELLS LINKABLE', 'IS IT TASTY?', 'LEMME INSPECT'];
+    const HUNGRY_TALK = ['FEED ME!!', 'STARVINGGG', '*MEOWS ANGRILY*', 'FOOD FOOD FOOD', '*PAWS AT SCREEN*'];
+    const PET_TALK = ['*PURR*', 'MREOOW~', 'MORE PLEASE', 'AAA <3', 'BEST HOOMAN', '*NUZZLES*'];
+    const SLEEP_TALK = ['ZZZ...', '*DREAMING*', 'MRRR...', '*TWITCHES PAW*'];
+    const EAT_TALK = ['NOM NOM NOM', 'CHEWY', 'MMMF', '*CRUNCH*'];
 
-                setTimeout(() => { resetUI(); }, 2200);
-            });
-        }, 600);
+    /* ══ DOWNLOAD ══════════════════════════════════════════════════════════ */
+
+    const POLL_MS = 2000;
+    let jobId: string | null = null;
+    let pollId = 0;
+    let packetId = 0;
+    let busy = false;
+
+    const setBar = (pct: number, label: string) => {
+        pbarFill.style.width = clamp(pct, 0, 100) + '%';
+        pbarNum.textContent = label;
     };
 
-    const failUI = () => {
-        stopProgressShimmer();
+    const stopPolling = () => {
+        if (pollId) { clearInterval(pollId); pollId = 0; }
+        if (packetId) { clearInterval(packetId); packetId = 0; }
+    };
+
+    const idleUi = () => {
+        busy = false;
+        jobId = null;
+        stopPolling();
+        setBar(0, 'READY');
+        setMood(restMood());
+        hint.textContent = 'A FEED · START MENU · SELECT LOG';
+    };
+
+    const failUi = (msg: string) => {
+        stopPolling();
+        busy = false;
+        jobId = null;
         sfx.error();
         setMood('sad');
-        showThought('hairball...', 2000);
-        setProgressBar(0);
-        setHunger(1);
-        setTimeout(resetUI, 2200);
+        say('HAIRBALL...', 2200);
+        toast(msg.slice(0, 90));
+        setBar(0, 'FAILED');
+        setHunger(Math.max(0, hunger - 1));
+        setTimeout(() => { if (powered && !busy) idleUi(); }, 2400);
     };
 
-    const resetUI = () => {
-        saveBtn.disabled = false;
-        const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'FEED';
-        cancelBtn.style.display = 'none';
-        setProgressBar(0);
-        const next: CatMood = videoUrlInput.value.trim()
-            ? 'sniff'
-            : (hungerLevel <= 1 ? 'hungry' : 'idle');
-        setMood(next);
-        if (!videoUrlInput.value.trim()) hideThought();
+    const finishUi = (result: { downloadUrl?: string; filename?: string } | null) => {
+        stopPolling();
+        setBar(100, 'DONE');
+        setMood('squat');
+        say('HERE IT COMES...', 1400);
+
+        setTimeout(() => {
+            if (powered) {
+                poops.push({ x: VW - 38, y: FLOOR - 44, vy: 0, landed: false });
+                if (poops.length > 3) poops.shift();
+            }
+
+            setTimeout(() => {
+                /* the celebration is cosmetic — the file is handed over either way */
+                if (powered) {
+                    setMood('happy');
+                    setHunger(4);
+                    hearts(2);
+                    sparkles(6);
+                    sfx.fanfare();
+                    say('DEPOSITED!', 2400);
+                    toast('PLOP — YOUR FILE IS READY');
+                }
+
+                if (result && result.downloadUrl) {
+                    const a = document.createElement('a');
+                    a.href = result.downloadUrl;
+                    a.download = result.filename || 'allkitty';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                }
+                setTimeout(() => { if (powered) idleUi(); }, 2600);
+            }, 780);
+        }, 620);
     };
 
-    const handleDownload = async () => {
-        const url = videoUrlInput.value.trim();
+    const poll = () => {
+        pollId = window.setInterval(async () => {
+            if (!jobId) return;
+            try {
+                const res = await fetch('/api/queue/' + encodeURIComponent(jobId));
+                if (!res.ok) throw new Error('lost');
+                const job = await res.json();
+                if (job.state === 'completed') { finishUi(job.result || null); }
+                else if (job.state === 'failed') { failUi(job.failedReason || 'DOWNLOAD FAILED'); }
+                else if (job.state === 'active') { setBar(70, 'CHEWING'); setState('MUNCH'); }
+                else { setBar(30, 'IN QUEUE'); }
+            } catch {
+                failUi('LOST THE JOB');
+            }
+        }, POLL_MS);
+    };
+
+    const feed = async () => {
+        if (busy) { toast('STILL CHEWING'); return; }
+        const url = urlInput.value.trim();
         if (!url) {
-            showToast('paste a link first', 'error');
+            sfx.error();
             setMood('sad');
-            showThought('feed me a link', 1800);
-            setTimeout(() => setMood('idle'), 800);
+            say('FEED ME A LINK', 1800);
+            setTimeout(() => { if (powered && !busy) setMood(restMood()); }, 1200);
+            return;
+        }
+        if (!/^https?:\/\//i.test(url)) {
+            sfx.error();
+            toast('HTTP(S) LINKS ONLY');
+            say('THAT IS NOT FOOD', 1800);
             return;
         }
 
-        saveBtn.disabled = true;
-        const lbl = saveBtn.querySelector('span'); if (lbl) lbl.textContent = 'WAIT';
-        cancelBtn.style.display = 'inline-flex';
+        busy = true;
         setMood('munch');
-        showThought('nom nom...');
-        startProgressShimmer();
+        say(pick(EAT_TALK), 2600);
+        setBar(12, 'SENDING');
         setHunger(3);
+        hint.textContent = 'B CANCEL';
+
+        /* packets stream into the cat's mouth while it works */
+        packetId = window.setInterval(() => {
+            spawn({ kind: 'file', x: VW + 4, y: 30 + Math.random() * 40, vx: -1.1, vy: 0, life: 0, max: 200 });
+        }, 700);
+
+        const format = cfg.diet === 'audio' ? 'audio' : cfg.silent ? 'mute' : 'video';
 
         try {
-            let formatParam: string = state.downloadMode;
-            if (state.downloadMode === 'video' && state.mute) formatParam = 'mute';
-
-            const payload = { url, format: formatParam, quality: state.quality, codec: state.codec, container: 'auto' };
-
-            const response = await fetch('/api/download', {
+            const res = await fetch('/api/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ url, format, quality: cfg.quality, codec: cfg.codec, container: 'auto' }),
             });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'failed to queue');
-            }
-
-            const data = await response.json();
-            if (data.success && data.jobId) {
-                showToast('added to queue!', 'info');
-                pollJobStatus(data.jobId);
-            }
-        } catch (error: any) {
-            showToast(error.message || 'server unreachable', 'error');
-            failUI();
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'COULD NOT QUEUE');
+            jobId = data.jobId;
+            setBar(30, 'IN QUEUE');
+            toast('IN THE QUEUE');
+            poll();
+        } catch (err: any) {
+            failUi(String(err && err.message ? err.message : 'SERVER UNREACHABLE').toUpperCase());
         }
     };
 
-    saveBtn.addEventListener('click', () => { sfx.click(); handleDownload(); });
-    cancelBtn.addEventListener('click', () => {
-        sfx.click();
+    const cancel = async () => {
+        if (!busy) return;
+        const id = jobId;
         stopPolling();
-        showToast('stopped tracking', 'info');
-        showThought('mrow?', 1500);
-        resetUI();
-    });
-
-    videoUrlInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleDownload(); });
-
-    videoUrlInput.addEventListener('input', () => {
-        lastInteraction = Date.now();
-        const restable = currentMood === 'idle' || currentMood === 'sniff' || currentMood === 'happy' ||
-                         currentMood === 'sad' || currentMood === 'sleep' || currentMood === 'pet' ||
-                         currentMood === 'hungry';
-        if (restable) {
-            if (videoUrlInput.value.trim()) {
-                setMood('sniff');
-                showThought(pick(sniffThoughts));
-            } else {
-                hideThought();
-                setMood(hungerLevel <= 1 ? 'hungry' : 'idle');
-            }
+        busy = false;
+        jobId = null;
+        sfx.back();
+        say('MROW?', 1400);
+        toast('STOPPED');
+        idleUi();
+        if (id) {
+            try { await fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uuid: id }) }); }
+            catch { /* the job may already be gone */ }
         }
-    });
+    };
 
-    videoUrlInput.addEventListener('paste', () => {
-        setTimeout(() => {
-            if (videoUrlInput.value.trim() && currentMood !== 'munch' && currentMood !== 'squat') {
-                sfx.paste();
-                setMood('sniff');
-                showThought('snifff... a link!');
-                screen.animate(
-                    [{ transform: 'translate(0,0)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(2px,-1px)' }, { transform: 'translate(0,0)' }],
-                    { duration: 220, iterations: 1, easing: 'steps(4)' }
-                );
-            }
-        }, 0);
-    });
+    /* ══ CONTROLS ══════════════════════════════════════════════════════════ */
 
-    catCanvas.addEventListener('click', () => {
-        lastInteraction = Date.now();
-        if (currentMood === 'munch' || currentMood === 'squat') return;
+    const pet = () => {
+        if (!powered || busy) return;
+        lastPoke = Date.now();
         sfx.purr();
-        spawnHearts(3);
-        const prev = videoUrlInput.value.trim();
-        const restMood: CatMood = prev ? 'sniff' : (hungerLevel <= 1 ? 'hungry' : 'idle');
+        hearts(3);
         setMood('pet');
-        showThought(pick(petThoughts), 1500);
-        setTimeout(() => {
-            if (currentMood === 'pet') setMood(restMood);
-        }, 1400);
-    });
+        say(pick(PET_TALK), 1500);
+        setTimeout(() => { if (powered && mood === 'pet') setMood(restMood()); }, 1500);
+    };
 
-    // Pet on hover too — small wiggle without state change
-    catCanvas.addEventListener('mouseenter', () => {
-        if (currentMood === 'idle' || currentMood === 'sleep') {
-            lastInteraction = Date.now();
-            if (currentMood === 'sleep') {
-                setMood('idle');
-                showThought('mrrr...?', 1400);
-            }
-        }
-    });
+    const press = (el: HTMLElement) => {
+        el.classList.add('is-down');
+        setTimeout(() => el.classList.remove('is-down'), 90);
+    };
 
-    // --- Idle behavior + hunger decay ---
-    idleBehaviorId = setInterval(() => {
-        const idleSec = (Date.now() - lastInteraction) / 1000;
-        // Long idle → sleep
-        if (idleSec > 50 && currentMood === 'idle') {
-            setMood('sleep');
-            showThought(pick(sleepThoughts), 2400);
+    const onA = () => {
+        if (!powered) { powerOn(); return; }
+        press(btnA);
+        if (view === 'menu') {
+            const row = ROWS[menuSel];
+            if (row.act) { sfx.accept(); row.act(); }
+            else if (row.step) { sfx.accept(); row.step(1); saveCfg(); renderMenu(); }
             return;
         }
-        // Random idle nudges
-        if (currentMood === 'idle' && Math.random() < 0.45) {
-            const r = Math.random();
-            if (r < 0.55) {
-                showThought(pick(idleThoughts), 2400);
-            } else if (r < 0.85) {
+        if (view === 'log') {
+            const it = history[logSel];
+            sfx.accept();
+            if (it && it.status === 'completed' && it.filename) {
+                toast('RE-FEED THE LINK TO FETCH AGAIN');
+            } else if (it) {
+                urlInput.value = it.url;
+                setView('home');
                 setMood('sniff');
-                setTimeout(() => { if (currentMood === 'sniff' && !videoUrlInput.value.trim()) setMood('idle'); }, 900);
-            } else {
-                renderSprite(catCanvas, blinkFrame, PAL);
-                setTimeout(() => { if (currentMood === 'idle') renderSprite(catCanvas, idleFrame, PAL); }, 200);
+                say('GOT IT — PRESS A', 2200);
             }
-        } else if (currentMood === 'sleep' && Math.random() < 0.5) {
-            showThought(pick(sleepThoughts), 2200);
-        } else if (currentMood === 'hungry' && Math.random() < 0.5) {
-            showThought(pick(hungryThoughts), 2400);
-        } else if (currentMood === 'sniff' && Math.random() < 0.35) {
-            showThought(pick(sniffThoughts), 1800);
+            return;
         }
-    }, 7000);
+        if (view === 'info') { sfx.back(); setView('menu'); return; }
+        sfx.accept();
+        void feed();
+    };
 
-    // Hunger ticks down slowly
-    setInterval(() => {
-        if (currentMood === 'munch' || currentMood === 'squat' || currentMood === 'happy') return;
-        if (hungerLevel > 0) {
-            hungerLevel -= 1;
-            setHunger(hungerLevel);
+    const onB = () => {
+        if (!powered) return;
+        press(btnB);
+        if (view === 'menu' || view === 'log' || view === 'info') { sfx.back(); setView('home'); return; }
+        if (busy) { void cancel(); return; }
+        sfx.back();
+        if (urlInput.value) { urlInput.value = ''; setMood(restMood()); say('CLEARED', 1200); }
+    };
+
+    const onStart = () => {
+        if (!powered) { powerOn(); return; }
+        press(btnStart);
+        sfx.click();
+        setView(view === 'menu' ? 'home' : 'menu');
+    };
+
+    const onSelect = () => {
+        if (!powered) { powerOn(); return; }
+        press(btnSelect);
+        sfx.click();
+        setView(view === 'log' ? 'home' : 'log');
+    };
+
+    const onDir = (dir: string) => {
+        if (!powered) return;
+        lastPoke = Date.now();
+        sfx.move();
+        dpadPlate.style.setProperty('--dx', dir === 'up' ? '9deg' : dir === 'down' ? '-9deg' : '0deg');
+        dpadPlate.style.setProperty('--dy', dir === 'left' ? '-9deg' : dir === 'right' ? '9deg' : '0deg');
+        setTimeout(() => {
+            dpadPlate.style.setProperty('--dx', '0deg');
+            dpadPlate.style.setProperty('--dy', '0deg');
+        }, 130);
+
+        if (view === 'menu') {
+            if (dir === 'up') menuSel = (menuSel - 1 + ROWS.length) % ROWS.length;
+            else if (dir === 'down') menuSel = (menuSel + 1) % ROWS.length;
+            else {
+                const row = ROWS[menuSel];
+                if (row.step) { row.step(dir === 'right' ? 1 : -1); saveCfg(); }
+            }
+            renderMenu();
+            return;
         }
-        if (hungerLevel <= 1 && currentMood !== 'sleep' && currentMood !== 'hungry' && currentMood !== 'pet') {
-            setMood('hungry');
-            showThought(pick(hungryThoughts), 2800);
+        if (view === 'log') {
+            if (dir === 'up') logSel--;
+            else if (dir === 'down') logSel++;
+            renderLog();
+            return;
         }
-    }, 35000);
+        /* on the home screen the pad pokes the cat */
+        if (dir === 'up') { pet(); return; }
+        if (dir === 'down') { setMood('sleep'); say(pick(SLEEP_TALK), 2000); return; }
+        sfx.meow();
+        say(pick(IDLE_TALK), 1800);
+    };
 
-    // Any user input on the page = poke the cat
-    document.addEventListener('keydown', () => { lastInteraction = Date.now(); }, { passive: true });
-    document.addEventListener('mousemove', () => { lastInteraction = Date.now(); }, { passive: true });
-
-    // Initial sfx toggle state from localStorage
-    sfxToggleCheckbox.checked = !sfxMuted;
-    sfxToggleCheckbox.addEventListener('change', () => {
-        sfxMuted = !sfxToggleCheckbox.checked;
-        localStorage.setItem('allkitty.muted', sfxMuted ? '1' : '0');
-        if (!sfxMuted) sfx.click();
+    /* buttons */
+    btnA.addEventListener('click', onA);
+    btnB.addEventListener('click', onB);
+    btnStart.addEventListener('click', onStart);
+    btnSelect.addEventListener('click', onSelect);
+    powerBtn.addEventListener('click', togglePower);
+    document.querySelectorAll<HTMLButtonElement>('.dkey').forEach(k => {
+        k.addEventListener('click', () => onDir(k.dataset.dir as string));
     });
 
-    setMood('idle');
+    gfx.addEventListener('click', () => { if (powered && view === 'home') pet(); else if (!powered) powerOn(); });
+
+    cartBtn.addEventListener('click', () => {
+        sfx.cart();
+        const out = cart.classList.toggle('is-out');
+        if (out) { toast('CARTRIDGE OUT'); if (powered) { say('HEY!', 1500); setMood('sad'); } }
+        else { toast('CARTRIDGE IN'); if (powered) { setMood(restMood()); say('MROW!', 1500); } }
+    });
+
+    pasteBtn.addEventListener('click', async () => {
+        sfx.click();
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                urlInput.value = text.trim();
+                setMood('sniff');
+                say(pick(SNIFF_TALK), 2000);
+            } else toast('CLIPBOARD EMPTY');
+        } catch {
+            toast('CLIPBOARD BLOCKED — PASTE MANUALLY');
+            urlInput.focus();
+        }
+    });
+
+    urlInput.addEventListener('input', () => {
+        lastPoke = Date.now();
+        sfx.type();
+        if (!busy) setMood(restMood());
+    });
+    urlInput.addEventListener('paste', () => {
+        setTimeout(() => { if (urlInput.value.trim() && !busy) { setMood('sniff'); say(pick(SNIFF_TALK), 2200); } }, 0);
+    });
+    urlInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); urlInput.blur(); onA(); }
+        if (e.key === 'Escape') { urlInput.blur(); }
+        e.stopPropagation();
+    });
+
+    /* keyboard */
+    const KEYS: Record<string, () => void> = {
+        arrowup: () => onDir('up'), arrowdown: () => onDir('down'),
+        arrowleft: () => onDir('left'), arrowright: () => onDir('right'),
+        w: () => onDir('up'), s: () => onDir('down'), a: () => onDir('left'), d: () => onDir('right'),
+        enter: onA, z: onA,
+        escape: onB, x: onB,
+        ' ': onStart, l: onSelect, '\\': onSelect,
+        p: togglePower,
+    };
+    window.addEventListener('keydown', e => {
+        if (document.activeElement === urlInput) return;
+        const fn = KEYS[e.key.toLowerCase()];
+        if (!fn) return;
+        e.preventDefault();
+        fn();
+    });
+
+    /* ── knobs ────────────────────────────────────────────────────────────── */
+
+    const dragKnob = (el: HTMLElement, get: () => number, set: (n: number) => void, label: string) => {
+        let startY = 0, startV = 0, active = false;
+        const move = (e: PointerEvent) => {
+            if (!active) return;
+            const next = clamp(Math.round(startV + (startY - e.clientY) / 12), 0, 10);
+            if (next !== get()) { set(next); sfx.knob(); showOsd(label + ' ' + bar(next)); saveCfg(); }
+        };
+        el.addEventListener('pointerdown', e => {
+            active = true; startY = e.clientY; startV = get();
+            el.setPointerCapture(e.pointerId);
+            e.stopPropagation();
+        });
+        el.addEventListener('pointermove', move);
+        el.addEventListener('pointerup', () => { active = false; });
+        el.addEventListener('pointercancel', () => { active = false; });
+        el.addEventListener('keydown', e => {
+            const d = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? 1
+                : e.key === 'ArrowDown' || e.key === 'ArrowLeft' ? -1 : 0;
+            if (!d) return;
+            e.preventDefault(); e.stopPropagation();
+            set(clamp(get() + d, 0, 10));
+            sfx.knob(); showOsd(label + ' ' + bar(get())); saveCfg();
+        });
+    };
+
+    dragKnob(volKnob, () => cfg.vol, n => { cfg.vol = n; setVolume(); volKnob.setAttribute('aria-valuenow', String(n)); }, 'VOL');
+    dragKnob(conKnob, () => cfg.contrast, n => { cfg.contrast = n; applyContrast(); }, 'LIGHT');
+
+    /* ── tilt / drag ──────────────────────────────────────────────────────── */
+
+    let targetRx = 0, targetRy = 0, curRx = 0, curRy = 0;
+    let dragging = false, dragX = 0, dragY = 0, baseRx = 0, baseRy = 0;
+
+    const pointerTilt = (e: PointerEvent) => {
+        if (dragging) {
+            targetRy = clamp(baseRy + (e.clientX - dragX) * 0.22, -34, 34);
+            targetRx = clamp(baseRx - (e.clientY - dragY) * 0.18, -26, 26);
+            return;
+        }
+        const nx = (e.clientX / window.innerWidth) * 2 - 1;
+        const ny = (e.clientY / window.innerHeight) * 2 - 1;
+        targetRy = nx * 11;
+        targetRx = -ny * 7;
+    };
+
+    window.addEventListener('pointermove', pointerTilt, { passive: true });
+    consoleEl.addEventListener('pointerdown', e => {
+        const t = e.target as HTMLElement;
+        if (t.closest('button') || t.closest('input') || t.closest('.knob')) return;
+        dragging = true;
+        dragX = e.clientX; dragY = e.clientY;
+        baseRx = targetRx; baseRy = targetRy;
+        rig.classList.add('is-live');
+    });
+    window.addEventListener('pointerup', () => { dragging = false; });
+    window.addEventListener('pointerleave', () => { if (!dragging) { targetRx = 0; targetRy = 0; } });
+
+    /* ══ LOOP ══════════════════════════════════════════════════════════════ */
+
+    const root = document.documentElement.style;
+    let acc = 0, last = performance.now();
+
+    const loop = (now: number) => {
+        const dt = Math.min(64, now - last);
+        last = now;
+
+        /* tilt easing */
+        curRx += (targetRx - curRx) * 0.09;
+        curRy += (targetRy - curRy) * 0.09;
+        root.setProperty('--rx', curRx.toFixed(2) + 'deg');
+        root.setProperty('--ry', curRy.toFixed(2) + 'deg');
+        root.setProperty('--glx', (-curRy * 2.6).toFixed(1) + '%');
+        root.setProperty('--shx', (curRy * 0.9).toFixed(1) + 'px');
+
+        /* scene ticks at 30fps for that chunky handheld cadence */
+        acc += dt;
+        while (acc >= 33) {
+            acc -= 33;
+            if (powered) stepScene();
+        }
+        if (powered) drawScene();
+        else { ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, VW, VH); }
+
+        requestAnimationFrame(loop);
+    };
+
+    /* ── idle behaviour + hunger ──────────────────────────────────────────── */
+
+    setInterval(() => {
+        if (!powered || busy || view !== 'home') return;
+        const idleFor = (Date.now() - lastPoke) / 1000;
+        if (idleFor > 55 && mood === 'idle') { setMood('sleep'); say(pick(SLEEP_TALK), 2400); return; }
+        if (mood === 'idle' && chance(0.45)) say(pick(IDLE_TALK), 2200);
+        else if (mood === 'sleep' && chance(0.5)) say(pick(SLEEP_TALK), 2200);
+        else if (mood === 'hungry' && chance(0.5)) { say(pick(HUNGRY_TALK), 2400); sfx.meow(); }
+        else if (mood === 'sniff' && chance(0.35)) say(pick(SNIFF_TALK), 1800);
+    }, 7000);
+
+    setInterval(() => {
+        if (!powered || busy) return;
+        if (hunger > 0) setHunger(hunger - 1);
+        if (hunger <= 1 && mood !== 'sleep' && mood !== 'hungry') {
+            setMood('hungry');
+            say(pick(HUNGRY_TALK), 2600);
+        }
+    }, 38000);
+
+    ['pointerdown', 'keydown'].forEach(ev =>
+        document.addEventListener(ev, () => { lastPoke = Date.now(); audioReady(); }, { passive: true }));
+
+    /* ══ BOOT ══════════════════════════════════════════════════════════════ */
+
+    ctx.imageSmoothingEnabled = false;
+    applyShell();
+    applyScreen();
+    applyContrast();
+    volKnob.setAttribute('aria-valuenow', String(cfg.vol));
     setHunger(4);
-    setProgressBar(0);
-    showThought('paste a link, hooman', 3500);
-});
+    setBar(0, 'READY');
+    setView('boot');
+    document.body.dataset.power = 'off';
+    lcdDark.classList.remove('is-collapsing');
+    requestAnimationFrame(loop);
+})();

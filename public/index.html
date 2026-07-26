@@ -3,156 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>allkitty ◍ pocket downloader</title>
+    <meta name="theme-color" content="#0a0b10">
+    <meta name="description" content="AllKitty Pocket — a handheld media downloader. Feed it a link, the cat does the rest.">
+    <title>ALLKITTY POCKET ▸ handheld downloader</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preload" href="fonts/press-start-2p-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/vt323-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="bg-grid" aria-hidden="true"></div>
-    <div class="scanlines" aria-hidden="true"></div>
-    <div class="vignette" aria-hidden="true"></div>
+<body data-shell="dmg" data-screen="green" data-power="off">
 
-    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+<!-- ─────────────────────────  room  ───────────────────────── -->
+<div class="room" aria-hidden="true">
+    <div class="room-glow"></div>
+    <div class="room-floor"></div>
+    <div class="room-grain"></div>
+    <div class="room-vignette"></div>
+</div>
 
-    <main class="device" role="main">
-        <div class="device-shell">
-            <span class="screw screw-tl" aria-hidden="true"></span>
-            <span class="screw screw-tr" aria-hidden="true"></span>
-            <span class="screw screw-bl" aria-hidden="true"></span>
-            <span class="screw screw-br" aria-hidden="true"></span>
-            <div class="device-top">
-                <span class="brand">allkitty<span class="brand-dot">.</span>exe</span>
-                <span class="power-indicator">
-                    <span class="power-label">POWER</span>
-                    <span class="led" data-state="idle" id="powerLed" aria-hidden="true"></span>
+<a class="skip-link" href="#urlInput">Skip to the link field</a>
+
+<!-- ─────────────────────────  stage  ───────────────────────── -->
+<main class="stage" id="stage">
+    <div class="rig" id="rig">
+        <div class="drop-shadow" id="dropShadow" aria-hidden="true"></div>
+
+        <div class="console" id="console">
+
+            <!-- cartridge, sits in the slot behind the shell -->
+            <div class="cart" id="cart">
+                <button class="cart-grip" id="cartBtn" type="button" aria-label="Eject or insert the cartridge">
+                    <span class="cart-ridges" aria-hidden="true"></span>
+                </button>
+                <span class="cart-label" aria-hidden="true">
+                    <span class="cart-label-top">ALLKITTY</span>
+                    <span class="cart-label-sub">v2 · POCKET</span>
                 </span>
             </div>
 
-            <section class="screen" id="screen" data-state="idle">
-                <div class="screen-bezel">
-                    <div class="screen-glass">
-                        <div class="screen-stage">
-                            <div class="cat-stage">
-                                <div class="cat-canvas" id="catCanvas" aria-label="pixel cat mascot" role="img"></div>
-                                <div class="poop-stage" id="poopStage" aria-hidden="true"></div>
-                                <div class="thought" id="thought">
-                                    <span class="thought-bubble"></span>
-                                    <span class="thought-bubble"></span>
-                                    <div class="thought-box" id="thoughtBox">paste a link, hooman</div>
+            <!-- extruded plastic body -->
+            <div class="extrude" aria-hidden="true">
+                <i class="ext" style="--i:1"></i><i class="ext" style="--i:2"></i>
+                <i class="ext" style="--i:3"></i><i class="ext" style="--i:4"></i>
+                <i class="ext" style="--i:5"></i><i class="ext" style="--i:6"></i>
+                <i class="ext" style="--i:7"></i><i class="ext" style="--i:8"></i>
+                <i class="ext" style="--i:9"></i><i class="ext" style="--i:10"></i>
+                <i class="ext" style="--i:11"></i><i class="ext" style="--i:12"></i>
+                <i class="ext" style="--i:13"></i><i class="ext" style="--i:14"></i>
+                <i class="ext" style="--i:15"></i><i class="ext" style="--i:16"></i>
+            </div>
+
+            <!-- side furniture -->
+            <div class="knob knob-volume" id="volKnob" role="slider" tabindex="0"
+                 aria-label="Volume" aria-valuemin="0" aria-valuemax="10" aria-valuenow="6">
+                <span class="knob-ridges" aria-hidden="true"></span>
+                <span class="knob-tag">VOL</span>
+            </div>
+            <div class="knob knob-contrast" id="conKnob" role="slider" tabindex="0"
+                 aria-label="Screen contrast" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+                <span class="knob-ridges" aria-hidden="true"></span>
+                <span class="knob-tag">CON</span>
+            </div>
+
+            <div class="power-switch">
+                <button class="power-slider" id="powerBtn" type="button" role="switch" aria-checked="false" aria-label="Power">
+                    <span class="power-nub" aria-hidden="true"></span>
+                </button>
+                <span class="power-scale" aria-hidden="true">
+                    <span>OFF</span><span>ON</span>
+                </span>
+            </div>
+
+            <!-- front face -->
+            <div class="face">
+
+                <div class="bezel">
+                    <div class="bezel-top" aria-hidden="true">
+                        <span class="bezel-rule"></span>
+                        <span class="bezel-tag">PIXEL MATRIX · STEREO PURR</span>
+                        <span class="bezel-rule"></span>
+                    </div>
+
+                    <div class="led-rail" aria-hidden="true">
+                        <span class="led" id="powerLed" data-state="off"></span>
+                        <span class="led-tag">BATT</span>
+                    </div>
+
+                    <div class="lcd" id="lcd">
+                        <canvas id="gfx" width="160" height="144" aria-hidden="true"></canvas>
+
+                        <div class="lcd-ui" id="lcdUi">
+                            <!-- boot -->
+                            <section class="view" data-view="boot" aria-hidden="true">
+                                <div class="boot-mark" id="bootMark">
+                                    <span class="boot-word">ALLKITTY</span>
+                                    <span class="boot-sub">POCKET · AK-01</span>
                                 </div>
-                                <div class="floor"></div>
-                            </div>
-                            <div class="lcd-readout">
-                                <div class="lcd-row">
-                                    <span id="lcdState">▸ idle</span>
-                                    <span id="lcdHunger">♥♥♥♥</span>
+                            </section>
+
+                            <!-- home -->
+                            <section class="view" data-view="home">
+                                <div class="hud">
+                                    <span class="hud-hearts" id="hudHearts">####</span>
+                                    <span class="hud-state" id="hudState">IDLE</span>
                                 </div>
-                                <div class="lcd-bar"><div id="lcdBarFill" class="lcd-bar-fill"></div></div>
-                            </div>
+
+                                <div class="bubble" id="bubble"><span id="bubbleText">PASTE A LINK</span></div>
+
+                                <div class="panel">
+                                    <div class="linkrow">
+                                        <span class="linkrow-caret" aria-hidden="true">&gt;</span>
+                                        <label class="sr-only" for="urlInput">Media link</label>
+                                        <input id="urlInput" type="url" inputmode="url" spellcheck="false"
+                                               autocomplete="off" autocapitalize="off" placeholder="PASTE LINK">
+                                        <button class="linkrow-paste" id="pasteBtn" type="button" aria-label="Paste from clipboard">PST</button>
+                                    </div>
+                                    <div class="pbar" id="pbar">
+                                        <span class="pbar-fill" id="pbarFill"></span>
+                                        <span class="pbar-num" id="pbarNum">READY</span>
+                                    </div>
+                                    <div class="hint" id="hint">A FEED · START MENU · SELECT LOG</div>
+                                </div>
+                            </section>
+
+                            <!-- settings -->
+                            <section class="view" data-view="menu" aria-hidden="true">
+                                <div class="view-head">▸ SETTINGS</div>
+                                <ul class="menu" id="menuList"></ul>
+                                <div class="view-foot">◄ ► CHANGE · B BACK</div>
+                            </section>
+
+                            <!-- history -->
+                            <section class="view" data-view="log" aria-hidden="true">
+                                <div class="view-head">▸ LITTER LOG</div>
+                                <ul class="loglist" id="logList"></ul>
+                                <div class="view-foot">A GET · B BACK</div>
+                            </section>
+
+                            <!-- about -->
+                            <section class="view" data-view="info" aria-hidden="true">
+                                <div class="view-head">▸ README</div>
+                                <div class="info-body">
+                                    <p>FEED THE CAT A LINK.<br>IT EATS. IT POOPS A FILE.</p>
+                                    <p>YOUTUBE · TIKTOK · X<br>+ 1000 MORE SITES</p>
+                                    <p>NO ADS. NO TRACKING.<br>JUST PIXELS.</p>
+                                    <p class="info-dim">AK-01 · POCKET EDITION<br>PIXELS DRAWN BY HAND</p>
+                                </div>
+                                <div class="view-foot">B BACK</div>
+                            </section>
+
+                            <div class="osd" id="osd" aria-hidden="true"><span id="osdText"></span></div>
+                            <div class="scr-toast" id="scrToast" aria-hidden="true"></div>
                         </div>
+
+                        <div class="lcd-dots" aria-hidden="true"></div>
+                        <div class="lcd-glare" id="lcdGlare" aria-hidden="true"></div>
+                        <div class="lcd-dark" id="lcdDark" aria-hidden="true"></div>
                     </div>
                 </div>
-            </section>
 
-            <div class="device-controls">
-                <div class="input-pad">
-                    <input type="text" id="videoUrl" class="pixel-input" placeholder="▌ paste link…" spellcheck="false" autocomplete="off" aria-label="Media URL">
-                    <button id="saveBtn" class="dpad-btn primary" aria-label="Download media"><span>FEED</span></button>
-                    <button id="cancelBtn" class="dpad-btn cancel-btn" style="display:none" aria-label="Cancel download"><span>STOP</span></button>
+                <div class="brandrow">
+                    <span class="brand">ALLKITTY<span class="brand-tm">™</span></span>
+                    <span class="brand-sub">POCKET</span>
+                    <span class="brand-model" aria-hidden="true">AK-01</span>
                 </div>
-                <div class="bottom-pad">
-                    <button id="historyBtn" class="ctrl-pill" aria-label="Open history" aria-expanded="false" aria-controls="historyPanel">A · log</button>
-                    <button id="settingsBtn" class="ctrl-pill" aria-label="Open settings" aria-expanded="false" aria-controls="settingsPanel">B · cfg</button>
-                    <button id="infoBtn" class="ctrl-pill" aria-label="Open information" aria-expanded="false" aria-controls="infoPanel">? · info</button>
-                </div>
-            </div>
-        </div>
-    </main>
 
-    <div id="historyPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Download History">
-        <div class="panel-container" tabindex="-1">
-            <div class="panel-header">
-                <h2>▣ litter box</h2>
-                <button id="closeHistory" class="close-btn" aria-label="Close history">×</button>
-            </div>
-            <div class="panel-content">
-                <div id="historyList" class="history-list">
-                    <p class="small-text">scratching post empty…</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="infoPanel" class="side-panel" role="dialog" aria-modal="true" aria-label="Information Panel">
-        <div class="panel-container" tabindex="-1">
-            <div class="panel-header">
-                <h2>? readme.txt</h2>
-                <button id="closeInfo" class="close-btn" aria-label="Close information">×</button>
-            </div>
-            <div class="panel-content">
-                <p><strong>allkitty</strong> is a pocket media downloader.</p>
-                <ul>
-                    <li>feed it a link, it poops a file.</li>
-                    <li>youtube · tiktok · twitter · more.</li>
-                    <li>no ads · no tracking · just pixels.</li>
-                </ul>
-                <p class="small-text">v2 · pocket edition · pixels by hand</p>
-            </div>
-        </div>
-    </div>
-
-    <div id="settingsPanel" class="side-panel bottom-up" role="dialog" aria-modal="true" aria-label="Settings Panel">
-        <div class="panel-container" tabindex="-1">
-            <div class="panel-header">
-                <h2>⚙ tuning</h2>
-                <button id="closeSettings" class="close-btn" aria-label="Close settings">×</button>
-            </div>
-            <div class="panel-content">
-                <div class="setting-group">
-                    <label>diet</label>
-                    <div class="segmented-control" data-state="downloadMode">
-                        <button class="segment active" data-value="video">video</button>
-                        <button class="segment" data-value="audio">audio</button>
+                <!-- controls -->
+                <div class="dpad" id="dpad">
+                    <div class="dpad-plate" id="dpadPlate">
+                        <span class="dpad-arm dpad-arm-h" aria-hidden="true"></span>
+                        <span class="dpad-arm dpad-arm-v" aria-hidden="true"></span>
+                        <span class="dpad-hub" aria-hidden="true"></span>
+                        <button class="dkey dkey-up"    type="button" data-dir="up"    aria-label="Up"></button>
+                        <button class="dkey dkey-down"  type="button" data-dir="down"  aria-label="Down"></button>
+                        <button class="dkey dkey-left"  type="button" data-dir="left"  aria-label="Left"></button>
+                        <button class="dkey dkey-right" type="button" data-dir="right" aria-label="Right"></button>
                     </div>
                 </div>
-                <div class="setting-group">
-                    <label>resolution</label>
-                    <div class="segmented-control" data-state="quality">
-                        <button class="segment active" data-value="1080">1080p</button>
-                        <button class="segment" data-value="1440">1440p</button>
-                        <button class="segment" data-value="2160">4k</button>
-                        <button class="segment" data-value="max">max</button>
+
+                <div class="ab">
+                    <div class="ab-seat">
+                        <button class="rbtn" id="btnB" type="button" aria-label="B button — back and cancel"></button>
+                        <span class="rbtn-tag" aria-hidden="true">B</span>
+                    </div>
+                    <div class="ab-seat">
+                        <button class="rbtn" id="btnA" type="button" aria-label="A button — feed the cat"></button>
+                        <span class="rbtn-tag" aria-hidden="true">A</span>
                     </div>
                 </div>
-                <div class="setting-group">
-                    <label>codec</label>
-                    <div class="segmented-control" data-state="codec">
-                        <button class="segment active" data-value="h264">h264</button>
-                        <button class="segment" data-value="av1">av1</button>
-                        <button class="segment" data-value="vp9">vp9</button>
+
+                <div class="pills">
+                    <div class="pill-seat">
+                        <button class="pill" id="btnSelect" type="button" aria-label="Select — open the litter log"></button>
+                        <span class="pill-tag" aria-hidden="true">SELECT</span>
+                    </div>
+                    <div class="pill-seat">
+                        <button class="pill" id="btnStart" type="button" aria-label="Start — open settings"></button>
+                        <span class="pill-tag" aria-hidden="true">START</span>
                     </div>
                 </div>
-                <div class="setting-group toggle-group">
-                    <label>silent (mute)</label>
-                    <label class="switch">
-                        <input type="checkbox" id="muteVideo" aria-label="Mute video">
-                        <span class="slider round"></span>
-                    </label>
+
+                <div class="speaker" id="speaker" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
-                <div class="setting-group toggle-group">
-                    <label>sfx (chiptune)</label>
-                    <label class="switch">
-                        <input type="checkbox" id="sfxToggle" aria-label="Enable sound effects" checked>
-                        <span class="slider round"></span>
-                    </label>
-                </div>
+
+                <span class="jack" aria-hidden="true"></span>
             </div>
         </div>
     </div>
+</main>
 
-    <script src="script.js"></script>
+<p class="colophon">
+    drag the shell to turn it · <kbd>↑↓←→</kbd> d-pad · <kbd>Enter</kbd> A · <kbd>Esc</kbd> B ·
+    <kbd>Space</kbd> start · <kbd>L</kbd> select · <kbd>P</kbd> power
+</p>
+
+<div class="sr-only" role="status" aria-live="polite" id="srStatus"></div>
+<noscript><p class="colophon">AllKitty needs JavaScript to run the handheld.</p></noscript>
+
+<script src="script.js"></script>
 </body>
 </html>

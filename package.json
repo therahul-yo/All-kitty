@@ -5,9 +5,10 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:web",
+    "build:web": "tsc public/script.ts --lib dom,esnext --target es2022 --outFile public/script.js --ignoreConfig --ignoreDeprecations 6.0",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
+    "dev": "npm run build:web && ts-node src/server.ts",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch"
