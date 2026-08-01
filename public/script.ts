@@ -20,8 +20,8 @@
     /* ── persisted settings ───────────────────────────────────────────────── */
 
     type Diet = 'video' | 'audio';
-    type Shell = 'dmg' | 'grape' | 'pika' | 'noir';
-    type Screen = 'green' | 'pocket' | 'aqua' | 'candy';
+    type Shell = 'bone' | 'graphite' | 'sand' | 'cobalt';
+    type Screen = 'ink' | 'green' | 'aqua' | 'candy';
 
     interface Settings {
         diet: Diet;
@@ -40,7 +40,7 @@
     const DEFAULTS: Settings = {
         diet: 'video', quality: '1080', codec: 'h264', silent: false,
         sfx: true, bgm: false, vol: 6, contrast: 5,
-        shell: 'dmg', screen: 'green', color: false,
+        shell: 'bone', screen: 'ink', color: false,
     };
 
     const STORE = 'allkitty.pocket';
@@ -456,34 +456,71 @@
     const SPR_ZZZ = ['00000', '...0.', '..0..', '.0...', '00000'];
     const SPR_BOWL = ['.000000000000.', '.033333333330.', '.001111111100.', '..0111111110..', '...00000000...'];
 
-    type Pal = Record<string, string | null>;
+    /* A palette entry is anything canvas accepts as a fillStyle — a colour, or
+       a dither pattern. That is the whole trick behind the 1-bit screen: there
+       is no grey, so the mid tones are ordered dither instead, exactly the way
+       real 1-bit artwork shades. Patterns tile from the canvas origin, so the
+       texture stays locked to the screen instead of crawling with the sprite. */
+    type Fill = string | CanvasPattern;
+    type Pal = Record<string, Fill | null>;
 
     const SCREENS: Record<Screen, [string, string, string, string]> = {
+        ink:    ['#14140f', '#14140f', '#14140f', '#fbfaf5'],   /* mids dithered */
         green:  ['#081820', '#346856', '#88c070', '#e0f8d0'],
-        pocket: ['#0f0f10', '#4c4c48', '#9c9c92', '#dcdcd0'],
         aqua:   ['#04202b', '#0d5f79', '#2eaec9', '#c2f4ff'],
         candy:  ['#2a0824', '#7d2f5d', '#dc74a2', '#ffe1ef'],
     };
+    const isOneBit = () => cfg.screen === 'ink';
 
-    let S: [string, string, string, string] = SCREENS.green;
+    let S: [string, string, string, string] = SCREENS.ink;
     let palCat: Pal = {};
     let palPoop: Pal = {};
     let palUi: Pal = {};
     let palHeart: Pal = {};
+    let dither25: Fill = '#000';
+    let dither50: Fill = '#000';
+    let dither75: Fill = '#000';
+
+    /* 4x4 tile with 2x2 blocks, so the dither grain matches the 2x sprite pixel */
+    const makeDither = (ink: string, pct: 25 | 50 | 75): Fill => {
+        const tile = document.createElement('canvas');
+        tile.width = tile.height = 4;
+        const g = tile.getContext('2d');
+        if (!g) return ink;
+        g.fillStyle = ink;
+        if (pct === 75) { g.fillRect(0, 0, 4, 4); g.clearRect(2, 2, 2, 2); }
+        else if (pct === 50) { g.fillRect(0, 0, 2, 2); g.fillRect(2, 2, 2, 2); }
+        else { g.fillRect(0, 0, 2, 2); }
+        return ctx.createPattern(tile, 'repeat') || ink;
+    };
 
     const buildPalettes = () => {
-        S = SCREENS[cfg.screen] || SCREENS.green;
+        S = SCREENS[cfg.screen] || SCREENS.ink;
         const [s0, s1, s2, s3] = S;
+        dither25 = makeDither(s0, 25);
+        dither50 = makeDither(s0, 50);
+        dither75 = makeDither(s0, 75);
+
         if (cfg.color) {
             palCat = { '.': null, '0': '#2a1000', '1': '#c4560a', '2': '#ff9d3c', '3': '#ffe6c4', p: '#ff6f9c', e: '#140600', w: '#ffffff' };
             palPoop = { '.': null, '0': '#241203', '1': '#6b3a1a', '2': '#a3641f' };
             palHeart = { '.': null, '0': '#8c1440', '3': '#ff6f9c' };
+        } else if (isOneBit()) {
+            /* Line art, not texture. The sprite's outline is only one pixel
+               thick, so a dithered body swallows it — the fur reads as bare
+               paper and the ink does the drawing, with dither kept for small
+               accents like the nose and inner ears. */
+            palCat = { '.': null, '0': s0, '1': s0, '2': s3, '3': s3, p: dither50, e: s0, w: s3 };
+            palPoop = { '.': null, '0': s0, '1': dither50, '2': dither25 };
+            palHeart = { '.': null, '0': s0, '3': dither50 };
         } else {
             palCat = { '.': null, '0': s0, '1': s1, '2': s2, '3': s3, p: s1, e: s0, w: s3 };
             palPoop = { '.': null, '0': s0, '1': s1, '2': s2 };
             palHeart = { '.': null, '0': s0, '3': s2 };
         }
-        palUi = { '.': null, '0': s0, '1': s1, '2': s2, '3': s3 };
+        palUi = isOneBit() && !cfg.color
+            ? { '.': null, '0': s0, '1': dither50, '2': dither25, '3': s3 }
+            : { '.': null, '0': s0, '1': s1, '2': s2, '3': s3 };
     };
 
     /* draw a char-grid sprite, batching horizontal runs of one colour */
@@ -579,18 +616,27 @@
             for (let x = ((y / 8) % 2) * 4 + 2; x < VW; x += 8) ctx.fillRect(x, y, 1, 1);
         }
 
-        /* floor: a light board with a hard top edge, not a heavy slab */
-        ctx.fillStyle = s2;
-        ctx.fillRect(0, FLOOR, VW, VH - FLOOR);
-        ctx.fillStyle = s0;
-        ctx.fillRect(0, FLOOR, VW, 1);
-        ctx.fillStyle = s1;
-        for (let y = FLOOR + 4; y < VH; y += 5) {
-            for (let x = ((y / 5) | 0) % 2 ? 3 : 0; x < VW; x += 6) ctx.fillRect(x, y, 3, 1);
+        /* Floor. On ink it is a hard rule with a short falloff band rather than
+           a filled slab — a full-height dither reads as noise at this size. */
+        const oneBit = isOneBit() && !cfg.color;
+        if (oneBit) {
+            ctx.fillStyle = s0;
+            ctx.fillRect(0, FLOOR, VW, 1);
+            ctx.fillStyle = dither25;
+            ctx.fillRect(0, FLOOR + 1, VW, 6);
+        } else {
+            ctx.fillStyle = s2;
+            ctx.fillRect(0, FLOOR, VW, VH - FLOOR);
+            ctx.fillStyle = s0;
+            ctx.fillRect(0, FLOOR, VW, 1);
+            ctx.fillStyle = s1;
+            for (let y = FLOOR + 4; y < VH; y += 5) {
+                for (let x = ((y / 5) | 0) % 2 ? 3 : 0; x < VW; x += 6) ctx.fillRect(x, y, 3, 1);
+            }
         }
 
         /* contact shadow so the cat sits on the floor instead of hovering */
-        ctx.fillStyle = s1;
+        ctx.fillStyle = oneBit ? dither50 : s1;
         ctx.fillRect(CAT_X + 8, FLOOR - 2, CAT_W - 16, 2);
         ctx.fillRect(CAT_X + 3, FLOOR - 1, CAT_W - 6, 1);
 
@@ -745,8 +791,8 @@
         { key: 'BGM', val: () => cfg.bgm ? 'ON' : 'OFF', step: () => { cfg.bgm = !cfg.bgm; if (cfg.bgm) startBgm(); else stopBgm(); } },
         { key: 'VOL', val: () => bar(cfg.vol), step: d => { cfg.vol = clamp(cfg.vol + d, 0, 10); setVolume(); } },
         { key: 'LIGHT', val: () => bar(cfg.contrast), step: d => { cfg.contrast = clamp(cfg.contrast + d, 0, 10); applyContrast(); } },
-        { key: 'SHELL', val: () => cfg.shell.toUpperCase(), step: d => { cfg.shell = cycle<Shell>(['dmg', 'grape', 'pika', 'noir'], cfg.shell, d); applyShell(); } },
-        { key: 'SCREEN', val: () => cfg.screen.toUpperCase(), step: d => { cfg.screen = cycle<Screen>(['green', 'pocket', 'aqua', 'candy'], cfg.screen, d); applyScreen(); } },
+        { key: 'SHELL', val: () => cfg.shell.toUpperCase(), step: d => { cfg.shell = cycle<Shell>(['bone', 'graphite', 'sand', 'cobalt'], cfg.shell, d); applyShell(); } },
+        { key: 'SCREEN', val: () => cfg.screen.toUpperCase(), step: d => { cfg.screen = cycle<Screen>(['ink', 'green', 'aqua', 'candy'], cfg.screen, d); applyScreen(); } },
         { key: 'FUR', val: () => cfg.color ? 'COLOR' : 'MONO', step: () => { cfg.color = !cfg.color; buildPalettes(); } },
         { key: 'ABOUT', val: () => '>', act: () => setView('info') },
     ];

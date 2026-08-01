@@ -29,29 +29,32 @@
     --font-pixel: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
     --font-lcd: 'VT323', ui-monospace, 'Courier New', monospace;
 
-    /* room */
-    --room-0: #05060a;
-    --room-1: #0d1018;
-    --room-2: #171b26;
-    --spot: #3a4560;
+    /* studio: a lit sweep, not a dark room */
+    --room-0: #dedbd3;
+    --room-1: #f6f4ef;
+    --room-2: #cbc7bd;
+    --spot: #ffffff;
+
+    /* one signal colour, used sparingly */
+    --accent: #ff5a1f;
 
     /* shell (hsl parts so the extrusion can shade itself) */
-    --sh-h: 44;
-    --sh-s: 7%;
-    --sh-l: 78%;
-    --shell-ink: hsl(var(--sh-h) 12% 34%);
+    --sh-h: 40;
+    --sh-s: 13%;
+    --sh-l: 93%;
+    --shell-ink: hsl(var(--sh-h) 8% 46%);
 
     /* bezel */
-    --bez-0: #4b4b52;
-    --bez-1: #2a2a31;
-    --bez-2: #15151a;
+    --bez-0: #3c3c3e;
+    --bez-1: #232325;
+    --bez-2: #131314;
 
-    /* screen palette (4 shades, dark → light) */
-    --s0: #081820;
-    --s1: #346856;
-    --s2: #88c070;
-    --s3: #e0f8d0;
-    --led: #ff4a45;
+    /* screen palette (4 shades, dark → light; on ink the mids are dithered) */
+    --s0: #14140f;
+    --s1: #14140f;
+    --s2: #14140f;
+    --s3: #fbfaf5;
+    --led: var(--accent);
 
     /* fixed resting angle of the console — never animated */
     --rx: 3deg;
@@ -62,14 +65,26 @@
 }
 
 /* ── shell finishes ─────────────────────────────────────────────────────── */
-body[data-shell="grape"]  { --sh-h: 272; --sh-s: 38%; --sh-l: 52%; --shell-ink: hsl(272 30% 22%); }
-body[data-shell="pika"]   { --sh-h: 46;  --sh-s: 88%; --sh-l: 58%; --shell-ink: hsl(38 60% 24%); }
-body[data-shell="noir"]   { --sh-h: 222; --sh-s: 10%; --sh-l: 22%; --shell-ink: hsl(220 12% 68%); }
+body[data-shell="graphite"] { --sh-h: 220; --sh-s: 5%;  --sh-l: 27%; --shell-ink: hsl(220 6% 72%); --room-0: #b9b6b0; --room-1: #d6d3cd; }
+body[data-shell="sand"]     { --sh-h: 34;  --sh-s: 34%; --sh-l: 80%; --shell-ink: hsl(30 22% 34%); }
+body[data-shell="cobalt"]   { --sh-h: 218; --sh-s: 42%; --sh-l: 44%; --shell-ink: hsl(218 30% 86%); --room-0: #c6c8cd; --room-1: #e3e5ea; }
 
 /* ── screen palettes ────────────────────────────────────────────────────── */
-body[data-screen="pocket"] { --s0: #0f0f10; --s1: #4c4c48; --s2: #9c9c92; --s3: #dcdcd0; --led: #ff5c3c; }
-body[data-screen="aqua"]   { --s0: #04202b; --s1: #0d5f79; --s2: #2eaec9; --s3: #c2f4ff; --led: #46d6ff; }
-body[data-screen="candy"]  { --s0: #2a0824; --s1: #7d2f5d; --s2: #dc74a2; --s3: #ffe1ef; --led: #ff5fa2; }
+body[data-screen="green"] { --s0: #081820; --s1: #346856; --s2: #88c070; --s3: #e0f8d0; }
+body[data-screen="aqua"]  { --s0: #04202b; --s1: #0d5f79; --s2: #2eaec9; --s3: #c2f4ff; }
+body[data-screen="candy"] { --s0: #2a0824; --s1: #7d2f5d; --s2: #dc74a2; --s3: #ffe1ef; }
+
+/* The ink screen has no greys — the canvas dithers, and the HTML chrome
+   leans on inversion instead of tinted fills. */
+/* solid paper, so the dithered floor cannot bleed through the text */
+body[data-screen="ink"] .hud,
+body[data-screen="ink"] .panel { background: var(--s3); }
+body[data-screen="ink"] .menu li.is-sel,
+body[data-screen="ink"] .loglist li.is-sel { background: var(--s0); color: var(--s3); }
+body[data-screen="ink"] .menu li.is-sel .menu-val,
+body[data-screen="ink"] .menu li.is-sel::before,
+body[data-screen="ink"] .loglist li.is-sel::before,
+body[data-screen="ink"] .loglist li.is-sel .log-top { color: var(--s3); }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -83,7 +98,7 @@ body {
     --shell-lo: hsl(var(--sh-h) var(--sh-s) calc(var(--sh-l) - 16%));
 
     background: var(--room-0);
-    color: #cfd6e6;
+    color: #2c2a26;
     font-family: var(--font-lcd);
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
@@ -107,15 +122,14 @@ body {
 /* ══ room ═══════════════════════════════════════════════════════════════ */
 .room { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
 
-/* A still studio: one soft key light above the console, two cold rim pools
-   in the corners, nothing pulsing. */
+/* A lit studio sweep: one soft key above the console, the paper falling off
+   gently to the corners. Nothing pulsing. */
 .room-glow {
     position: absolute; inset: -20%;
     background:
         radial-gradient(46% 38% at 50% 26%, color-mix(in srgb, var(--spot) 55%, transparent), transparent 72%),
-        radial-gradient(26% 26% at 84% 74%, color-mix(in srgb, var(--s2) 10%, transparent), transparent 70%),
-        radial-gradient(34% 34% at 14% 80%, color-mix(in srgb, var(--led) 7%, transparent), transparent 70%),
-        linear-gradient(180deg, var(--room-1), var(--room-0) 68%);
+        radial-gradient(40% 30% at 50% 96%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%),
+        linear-gradient(180deg, var(--room-1), var(--room-0) 72%);
 }
 
 .room-floor {
@@ -123,20 +137,20 @@ body {
     background:
         linear-gradient(180deg, transparent, color-mix(in srgb, var(--room-2) 70%, transparent) 55%),
         repeating-linear-gradient(90deg, transparent 0 calc(var(--u) * 46),
-            rgba(255,255,255,.022) calc(var(--u) * 46), rgba(255,255,255,.022) calc(var(--u) * 47));
+            rgba(0,0,0,.028) calc(var(--u) * 46), rgba(0,0,0,.028) calc(var(--u) * 47));
     transform: perspective(600px) rotateX(66deg);
     transform-origin: 50% 100%;
     mask-image: linear-gradient(180deg, transparent, #000 40%, #000);
 }
 
 .room-grain {
-    position: absolute; inset: 0; opacity: .3; mix-blend-mode: overlay;
+    position: absolute; inset: 0; opacity: .16; mix-blend-mode: multiply;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
 }
 
 .room-vignette {
     position: absolute; inset: 0;
-    background: radial-gradient(72% 62% at 50% 45%, transparent 40%, rgba(0,0,0,.72));
+    background: radial-gradient(78% 68% at 50% 42%, transparent 45%, rgba(60,55,45,.22));
 }
 
 /* ══ stage / 3d rig ═════════════════════════════════════════════════════ */
@@ -178,7 +192,7 @@ body {
 
 .ext {
     position: absolute; inset: 0;
-    border-radius: calc(var(--u) * 16) calc(var(--u) * 16) calc(var(--u) * 92) calc(var(--u) * 16);
+    border-radius: calc(var(--u) * 28);
     background: hsl(var(--sh-h) var(--sh-s) calc(var(--sh-l) - var(--i) * 1.7%));
     transform: translateZ(calc(var(--depth) * var(--i) * -1));
 }
@@ -191,7 +205,7 @@ body {
 .face {
     position: absolute; inset: 0;
     transform-style: preserve-3d;
-    border-radius: calc(var(--u) * 16) calc(var(--u) * 16) calc(var(--u) * 92) calc(var(--u) * 16);
+    border-radius: calc(var(--u) * 28);
     /* moulded plastic: top-left key, a soft sheen band across the waist,
        occlusion pooling into the bottom-right corner */
     background:
@@ -209,7 +223,7 @@ body {
 /* moulded seam that runs around the shell */
 .face::after {
     content: ''; position: absolute; inset: calc(var(--u) * 6);
-    border-radius: calc(var(--u) * 11) calc(var(--u) * 11) calc(var(--u) * 86) calc(var(--u) * 11);
+    border-radius: calc(var(--u) * 23);
     box-shadow: inset 0 0 0 calc(var(--u) * 1) rgba(0,0,0,.06),
                 inset 0 calc(var(--u) * 1) 0 rgba(255,255,255,.3);
     pointer-events: none;
@@ -219,7 +233,7 @@ body {
 .bezel {
     position: absolute; left: calc(var(--u) * 35); top: calc(var(--u) * 48);
     width: calc(var(--u) * 400); height: calc(var(--u) * 352);
-    border-radius: calc(var(--u) * 10) calc(var(--u) * 10) calc(var(--u) * 44) calc(var(--u) * 44);
+    border-radius: calc(var(--u) * 8);
     background: linear-gradient(168deg, var(--bez-0), var(--bez-1) 40%, var(--bez-2));
     box-shadow:
         inset 0 calc(var(--u) * 2) calc(var(--u) * 3) rgba(255,255,255,.16),
@@ -232,10 +246,10 @@ body {
     position: absolute; top: calc(var(--u) * 11); left: calc(var(--u) * 18); right: calc(var(--u) * 18);
     display: flex; align-items: center; gap: calc(var(--u) * 8);
 }
-.bezel-rule { flex: 1; height: calc(var(--u) * 2); background: linear-gradient(90deg, #8d3b6b, #6d3b8d); opacity: .85; }
+.bezel-rule { flex: 1; height: calc(var(--u) * 1); background: rgba(255,255,255,.16); }
 .bezel-tag {
-    font-family: var(--font-pixel); font-size: calc(var(--u) * 6.5);
-    letter-spacing: calc(var(--u) * 1); color: #d8d8e2; white-space: nowrap; opacity: .8;
+    font-family: var(--font-pixel); font-size: calc(var(--u) * 6);
+    letter-spacing: calc(var(--u) * 1.6); color: rgba(255,255,255,.5); white-space: nowrap;
 }
 
 .led-rail {
@@ -594,22 +608,31 @@ body[data-power="on"] .lcd-dark::after { content: none; }
     background: radial-gradient(closest-side, rgba(0,0,0,.14), transparent 78%);
     box-shadow: inset 0 calc(var(--u) * 2) calc(var(--u) * 4) rgba(0,0,0,.24);
 }
+/* machined discs: B is neutral, A carries the one signal colour */
 .rbtn {
     position: relative; display: block; cursor: pointer; padding: 0; border: 0;
-    width: calc(var(--u) * 58); height: calc(var(--u) * 58); border-radius: 50%;
-    background: radial-gradient(closest-side at 36% 28%, #d7657f, #a8264a 62%, #6d0f2d);
+    width: calc(var(--u) * 56); height: calc(var(--u) * 56); border-radius: 50%;
+    background:
+        linear-gradient(168deg, #4e4e52, #2a2a2d 58%, #1c1c1f);
     box-shadow:
-        inset 0 calc(var(--u) * 3) 0 rgba(255,255,255,.4),
-        inset 0 calc(var(--u) * -4) calc(var(--u) * 3) rgba(0,0,0,.45),
-        0 calc(var(--u) * 7) calc(var(--u) * 9) rgba(0,0,0,.45);
-    transform: translateZ(calc(var(--u) * 9));
+        inset 0 calc(var(--u) * 2) 0 rgba(255,255,255,.22),
+        inset 0 calc(var(--u) * -3) calc(var(--u) * 3) rgba(0,0,0,.5),
+        0 calc(var(--u) * 5) calc(var(--u) * 8) rgba(0,0,0,.28);
+    transform: translateZ(calc(var(--u) * 8));
     transition: transform .07s ease-out, box-shadow .07s ease-out;
 }
-body[data-shell="pika"] .rbtn { background: radial-gradient(closest-side at 36% 28%, #4a4d5c, #22242e 62%, #101119); }
-body[data-shell="noir"] .rbtn { background: radial-gradient(closest-side at 36% 28%, #6f7690, #2c3040 62%, #14161e); }
+#btnA {
+    background: linear-gradient(168deg,
+        color-mix(in srgb, var(--accent) 82%, #fff),
+        var(--accent) 55%,
+        color-mix(in srgb, var(--accent) 72%, #000));
+}
+/* concentric machining ring */
 .rbtn::after {
-    content: ''; position: absolute; inset: calc(var(--u) * 5); border-radius: 50%;
-    box-shadow: inset 0 0 calc(var(--u) * 8) rgba(0,0,0,.28);
+    content: ''; position: absolute; inset: calc(var(--u) * 7); border-radius: 50%;
+    box-shadow:
+        inset 0 0 0 calc(var(--u) * 1) rgba(255,255,255,.1),
+        inset 0 calc(var(--u) * 2) calc(var(--u) * 5) rgba(0,0,0,.3);
 }
 .rbtn.is-down, .rbtn:active {
     transform: translateZ(calc(var(--u) * 2));
@@ -650,20 +673,19 @@ body[data-shell="noir"] .rbtn { background: radial-gradient(closest-side at 36% 
 }
 
 /* ══ speaker ════════════════════════════════════════════════════════════ */
-/* kept clear of the big bottom-right corner sweep */
+/* A drilled dot matrix rather than moulded slots — precise, CNC-looking.
+   The grille never animates; the shell stays perfectly still. */
 .speaker {
-    position: absolute; right: calc(var(--u) * 46); bottom: calc(var(--u) * 66);
-    display: flex; gap: calc(var(--u) * 9); transform: rotate(-24deg);
+    position: absolute; right: calc(var(--u) * 42); bottom: calc(var(--u) * 54);
+    width: calc(var(--u) * 96); height: calc(var(--u) * 60);
+    display: block; transform: none;
+    background-image:
+        radial-gradient(circle at 50% 50%, rgba(0,0,0,.42) 0 calc(var(--u) * 1.7), transparent calc(var(--u) * 2));
+    background-size: calc(var(--u) * 12) calc(var(--u) * 12);
+    background-position: 0 0;
+    mask-image: radial-gradient(closest-side, #000 72%, transparent);
 }
-.speaker i {
-    display: block; width: calc(var(--u) * 7); height: calc(var(--u) * 62);
-    border-radius: calc(var(--u) * 4);
-    background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.32));
-    box-shadow:
-        inset 0 calc(var(--u) * 2) calc(var(--u) * 3) rgba(0,0,0,.55),
-        0 calc(var(--u) * 1) 0 rgba(255,255,255,.4);
-}
-/* the grille used to pulse with the audio; the shell stays perfectly still now */
+.speaker i { display: none; }
 
 .jack {
     position: absolute; left: calc(var(--u) * 38); bottom: calc(var(--u) * 18);
@@ -772,13 +794,13 @@ body[data-power="on"] .power-nub { transform: translateX(calc(var(--u) * 42)); }
 /* ══ colophon ═══════════════════════════════════════════════════════════ */
 .colophon {
     position: fixed; left: 0; right: 0; bottom: calc(var(--u) * 12); z-index: 3;
-    text-align: center; font-size: calc(var(--u) * 17); color: #6b7590;
+    text-align: center; font-size: calc(var(--u) * 17); color: #7d786e;
     letter-spacing: calc(var(--u) * 1); pointer-events: none;
 }
 .colophon kbd {
     font-family: var(--font-pixel); font-size: calc(var(--u) * 8);
     padding: calc(var(--u) * 3) calc(var(--u) * 5); border-radius: calc(var(--u) * 3);
-    background: #171b26; color: #93a0bd; box-shadow: 0 calc(var(--u) * 2) 0 #0a0d14;
+    background: #2c2a26; color: #e8e5de; box-shadow: 0 calc(var(--u) * 2) 0 rgba(0,0,0,.25);
 }
 
 /* ══ focus ══════════════════════════════════════════════════════════════ */

@@ -17,7 +17,7 @@ A robust, production-ready media downloading service built with Node.js, TypeScr
   - Secure HTTP headers via `Helmet`.
 - **🧪 Comprehensive Testing:** Unit and integration tests using `Jest` and `Supertest`.
 - **🐳 DevOps Ready:** Fully containerized with `Docker` and `Docker Compose`.
-- **🎮 A handheld you can hold:** The whole frontend is a 3D console rendered in CSS — extruded shell, tactile buttons, a 160×144 dot-matrix screen and a chiptune synth. The device itself never moves. Zero runtime dependencies.
+- **🎮 A handheld you can hold:** The whole frontend is a 3D console rendered in CSS — extruded bone-white shell, machined controls, a 160×144 **1-bit** screen that dithers instead of faking greys, and a chiptune synth. The device itself never moves. Zero runtime dependencies.
 
 ## 🛠️ Tech Stack
 
@@ -88,6 +88,11 @@ The UI is a single device — the AK-01 Pocket. Flip **POWER** on the top edge a
 The console sits at one fixed three-quarter angle and stays there — no float, no
 tilt-follow, no drag-to-rotate. Only the screen and the buttons animate. Click the
 cat to pet it, and pull the cartridge out of the top slot to see what happens.
+
+**Finishes:** four shells (bone, graphite, sand, cobalt) and four screens. The
+default screen is `INK` — a true 1-bit panel, so mid tones are ordered dither
+rather than grey, exactly the way 1-bit artwork shades. `GREEN`, `AQUA` and
+`CANDY` are four-shade panels for anyone who misses the old look.
 
 Everything is laid out in one `--u` unit, so the console scales as a single object
 from a phone to a desktop with no separate mobile layout.
