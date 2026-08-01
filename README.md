@@ -106,6 +106,26 @@ live elapsed timer say "working" without lying about how far along it is.
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
 | `MAX_FILE_AGE` | File cleanup threshold (ms) | `3600000` (1h) |
 | `FILE_PREFIX` | Default download filename | `allkitty` |
+| `YT_DLP_PATH` | Path to the yt-dlp executable | `yt-dlp` |
+| `COOKIES_PATH` | Path to a Netscape `cookies.txt`, passed to yt-dlp as `--cookies` | *(unset)* |
+| `PROXY_URL` | Upstream proxy for yt-dlp, passed as `--proxy` | *(unset)* |
+
+### When a link fails
+
+Most failures are the *platform* refusing a server, not a bad URL — so the error
+shown in the transcript is the real one yt-dlp reported, not a generic message.
+
+- **Instagram** hands logged-out visitors nothing unless yt-dlp can impersonate a
+  real browser's TLS fingerprint. That needs `curl_cffi`, which is **not** bundled
+  in the `yt-dlp` release zipapp — the Dockerfile installs it separately and the
+  build fails if impersonation ends up unavailable. yt-dlp only accepts
+  `curl_cffi` 0.10.x–0.15.x; a newer one is refused at import and leaves
+  impersonation silently off.
+- **Datacentre IPs** (Render, Fly, most VPS hosts) are rate-limited or blocked
+  outright by Instagram and YouTube. Impersonation helps; it is not a guarantee.
+  For anything gated, private, or age-restricted, set `COOKIES_PATH` to a
+  `cookies.txt` exported from a signed-in browser session, or route through a
+  residential `PROXY_URL`. Neither can be fixed in application code.
 
 ## 📜 License
 

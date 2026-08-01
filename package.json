@@ -9,9 +9,9 @@
     "build:web": "tsc public/script.ts --lib dom,esnext --target es2022 --outFile public/script.js --ignoreConfig --ignoreDeprecations 6.0",
     "start": "node dist/server.js",
     "dev": "npm run build:web && ts-node src/server.ts",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --forceExit",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

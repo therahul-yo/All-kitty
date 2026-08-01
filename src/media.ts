@@ -4,12 +4,67 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { DownloadRequest } from './types.js';
 
+// yt-dlp appends CLI advice and bug-report boilerplate to its errors. None of it
+// means anything to someone looking at a web page, so strip it before the text is
+// ever shown.
+const NOISE = [
+    /[;.]?\s*please report this issue on\s+https?:\/\/\S+[\s\S]*$/i,
+    /\.?\s*Confirm you are on the latest version using\s+yt-dlp -U\.?[\s\S]*$/i,
+    /\.?\s*Use --cookies[\s\S]*?for how to manually pass cookies\.?/i,
+    /\.?\s*Use --cookies(-from-browser)?[^.]*\.?/i,
+    /\.?\s*See\s+https:\/\/github\.com\/yt-dlp\/yt-dlp\/wiki\/FAQ\S*\s*[\s\S]*$/i,
+    /\s*\(caused by [\s\S]*$/i
+];
+
+/**
+ * Pull the real failure out of a yt-dlp run. Returns '' when there is nothing
+ * quotable, so callers can fall back to their own wording.
+ */
+export function extractYtDlpError(stderr: string): string {
+    const line = stderr
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('ERROR:'))
+        .pop();
+    if (!line) return '';
+
+    let msg = line.replace(/^ERROR:\s*/, '');
+    // "[Instagram] DZ1dcD1v725: Unable to …" — the extractor tag and media id are
+    // noise to a reader who already knows which link they pasted. The id is only
+    // dropped when it trails a tag, so a bare "Postprocessing: …" keeps its prefix.
+    msg = msg.replace(/^\[[^\]]+\]\s*(?:[\w.-]+:\s+)?/, '');
+    for (const pattern of NOISE) msg = msg.replace(pattern, '');
+
+    msg = msg.replace(/\s+/g, ' ').trim().replace(/[.,;\s]+$/, '');
+    if (msg.length > 220) msg = `${msg.slice(0, 217).trimEnd()}…`;
+    return msg;
+}
+
 export function getSemanticError(stderr: string): string {
     const errorPatterns = [
         {
             pattern: /Sign in to confirm you[’']re not a bot|confirm.+not a bot/i,
             message: 'YouTube blocked the server IP. Set COOKIES_PATH (cookies.txt from a logged-in browser) or PROXY_URL on the host.'
         },
+        // Instagram serves almost nothing to logged-out datacentre IPs. These come
+        // before the generic auth patterns below so the advice names the right site.
+        {
+            pattern: /Instagram sent an empty media response/i,
+            message: 'Instagram would not serve this post to a logged-out visitor. Set COOKIES_PATH on the host with cookies.txt exported from a signed-in instagram.com session.'
+        },
+        {
+            pattern: /exceeded the rate-limit for accessing posts anonymously|redirected to the login page/i,
+            message: 'Instagram is rate-limiting anonymous requests from this server. Wait a few minutes, or set COOKIES_PATH / PROXY_URL on the host.'
+        },
+        {
+            pattern: /only available for registered users who follow this account/i,
+            message: 'This Instagram post is from a private account. Only a signed-in follower can fetch it — set COOKIES_PATH on the host.'
+        },
+        {
+            pattern: /Instagram account cookies are no longer valid/i,
+            message: 'The Instagram cookies on the host have expired. Export a fresh cookies.txt and update COOKIES_PATH.'
+        },
+        { pattern: /There is no video in this post/i, message: 'That Instagram post has no video in it.' },
         {
             pattern: /NSFW tweet requires authentication|tweet requires.+log[- ]?in|requires authentication/i,
             message: 'Twitter/X requires login. Set COOKIES_PATH on the host with cookies.txt exported from x.com.'
@@ -29,17 +84,23 @@ export function getSemanticError(stderr: string): string {
     for (const { pattern, message } of errorPatterns) {
         if (pattern.test(stderr)) return message;
     }
-    return 'Processing failed. Please check the URL and try again.';
+
+    // Nothing matched. Say what actually went wrong rather than "check the URL",
+    // which sends people to re-paste a link that was never the problem.
+    return extractYtDlpError(stderr) || 'Processing failed. Please check the URL and try again.';
 }
 
 export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir: string): string[] {
     const { url, format, quality, codec, container } = body;
     const outputFileTemplate = path.join(downloadsDir, `${uuid}.%(ext)s`);
+    const isTwitter = /twitter\.com|x\.com/.test(url);
+    const isYoutube = /youtube\.com|youtu\.be/.test(url);
+    const isInstagram = /instagram\.com/.test(url);
+
     let args = [
         '--no-playlist',
         '--no-warnings',
         '-o', outputFileTemplate,
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         '--add-header', 'Accept-Language: en-US,en;q=0.9',
         '--geo-bypass',
         '--force-ipv4',
@@ -51,12 +112,23 @@ export function buildYtDlpArgs(body: DownloadRequest, uuid: string, downloadsDir
         '--extractor-args', 'youtube:player_client=tv_simply,mweb,ios,android,web_safari,web'
     ];
 
-    const isTwitter = /twitter\.com|x\.com/.test(url);
-    const isYoutube = /youtube\.com|youtu\.be/.test(url);
+    // Instagram's extractor impersonates a browser, which picks a matching
+    // User-Agent for the TLS fingerprint it presents. Pinning a stale Chrome 121
+    // string on top of that is the exact mismatch its anti-bot checks look for, so
+    // let yt-dlp set the header itself there.
+    if (!isInstagram) {
+        args.push(
+            '--user-agent',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        );
+    }
+
     if (isTwitter) {
         args.push('--referer', 'https://x.com/');
     } else if (isYoutube) {
         args.push('--referer', 'https://www.youtube.com/');
+    } else if (isInstagram) {
+        args.push('--referer', 'https://www.instagram.com/');
     }
 
     if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
