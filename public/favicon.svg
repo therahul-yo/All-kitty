@@ -1,33 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
-    <!-- handheld shell -->
-    <rect width="32" height="32" rx="6" fill="#1d2026"/>
-    <!-- LCD -->
-    <rect x="3" y="3" width="26" height="26" rx="2" fill="#e0f8d0"/>
-
-    <!-- ears -->
-    <rect x="8"  y="6" width="2" height="2" fill="#081820"/>
-    <rect x="22" y="6" width="2" height="2" fill="#081820"/>
-    <rect x="7"  y="8" width="4" height="2" fill="#081820"/>
-    <rect x="21" y="8" width="4" height="2" fill="#081820"/>
-    <rect x="8"  y="8" width="2" height="2" fill="#88c070"/>
-    <rect x="22" y="8" width="2" height="2" fill="#88c070"/>
-
-    <!-- head -->
-    <rect x="6"  y="10" width="20" height="13" fill="#081820"/>
-    <rect x="8"  y="10" width="16" height="11" fill="#88c070"/>
-
-    <!-- tabby stripes -->
-    <rect x="13" y="10" width="2" height="3" fill="#346856"/>
-    <rect x="17" y="10" width="2" height="3" fill="#346856"/>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="7" fill="#0f1216"/>
+    <rect x="1" y="1" width="30" height="30" rx="6.5" fill="none" stroke="#2a323d"/>
+    <g fill="none" stroke="#f2a65a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <!-- ears + head, drawn like the ascii /\_/\ -->
+        <path d="M8 15 L11 9 L14 14"/>
+        <path d="M24 15 L21 9 L18 14"/>
+        <path d="M14 14 L18 14"/>
+    </g>
     <!-- eyes -->
-    <rect x="10" y="14" width="3" height="3" fill="#081820"/>
-    <rect x="19" y="14" width="3" height="3" fill="#081820"/>
-
-    <!-- muzzle + nose -->
-    <rect x="12" y="18" width="8"  height="3" fill="#e0f8d0"/>
-    <rect x="15" y="18" width="2"  height="2" fill="#346856"/>
-
-    <!-- floor line -->
-    <rect x="3" y="23" width="26" height="2" fill="#346856"/>
+    <circle cx="12" cy="19" r="1.8" fill="#f2a65a"/>
+    <circle cx="20" cy="19" r="1.8" fill="#f2a65a"/>
+    <!-- prompt cursor for the whiskers/mouth line -->
+    <rect x="14" y="24" width="4" height="2.4" rx="1.2" fill="#f2a65a"/>
 </svg>
