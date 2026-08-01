@@ -10,3 +10,6 @@ test_output.mp4
 downloads.db
 downloads.db-journal
 public/script.js
+
+# local preview renders (screenshots for review, never shipped)
+.preview/
